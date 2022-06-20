@@ -1,10 +1,10 @@
 import cv2
 
 # read in the image
-img = cv2.imread('inputs/castle_medow.jpeg')
+img = cv2.imread('../inputs/castle_medow.jpeg')
 
 # open the class names files and then read them into a list
-with open('yolo_config_files/coco.names', 'r') as f:
+with open('../yolo_config_files/coco.names', 'r') as f:
     classes = f.read().splitlines()
 
 # read in the network from the saved config and weigh files
@@ -48,4 +48,4 @@ for classId in detected_classes:
     print('%s: %d' % (classes[classId], count))
 
 # save image
-cv2.imwrite('outputs/castle_medow_object_detection.jpg', img)
+cv2.imwrite('../outputs/castle_medow_object_detection.jpg', img)

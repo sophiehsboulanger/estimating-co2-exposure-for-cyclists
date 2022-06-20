@@ -132,4 +132,4 @@ dmypy.json
 inputs/
 outputs/
 
-/yolo_config_files/
+yolo_config_files/
