@@ -127,3 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Input and output folders
+inputs/
+outputs/
+
+/yolo_config_files/
