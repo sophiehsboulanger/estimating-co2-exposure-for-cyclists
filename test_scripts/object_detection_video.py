@@ -1,6 +1,6 @@
 import cv2
 
-video = cv2.VideoCapture('../inputs/test_video_3.mp4')
+video = cv2.VideoCapture('../inputs/test_video_2.mp4')
 # open the class names files and then read them into a list
 with open('../yolo_config_files/coco.names', 'r') as f:
     classes = f.read().splitlines()
@@ -47,7 +47,7 @@ img = frames[0]
 height, width, layers = img.shape
 # choose codec according to format needed
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-video = cv2.VideoWriter('../outputs/test_video_3_output.mp4', fourcc, 25, (width, height))
+video = cv2.VideoWriter('../outputs/test_video_2_output.mp4', fourcc, 25, (width, height))
 for frame in frames:
     video.write(frame)
 video.release()
