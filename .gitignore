@@ -133,3 +133,9 @@ inputs/
 outputs/
 
 yolo_config_files/
+
+/.idea/dissertaion.iml
+/.idea/misc.xml
+/.idea/modules.xml
+/.idea/inspectionProfiles/profiles_settings.xml
+/.idea/vcs.xml
