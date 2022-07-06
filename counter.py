@@ -41,7 +41,7 @@ def print_progress_bar(iteration, total, prefix='', suffix='', decimals=1, lengt
 
 
 # define the tracker
-tracker = DeepSort(max_age=30, nn_budget=70, nms_max_overlap=0.5, embedder_gpu=False)
+tracker = DeepSort(max_age=5, nms_max_overlap=0.3, embedder_gpu=False)
 
 # open the class names files and then read them into a list
 with open('yolo_config_files/coco.names', 'r') as f:
@@ -57,12 +57,12 @@ object_detector = cv2.dnn_DetectionModel(net)
 object_detector.setInputParams(scale=1 / 255, size=(416, 416), swapRB=True)
 
 # read in video
-video = cv2.VideoCapture('inputs/test_video_bike_1.mp4')
+video = cv2.VideoCapture('inputs/test_video_bike_stab_2.mp4')
 
-FRAME_SKIP = 1
+FRAME_SKIP = 5
 frame_number = 1
 total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
-print_progress_bar(0, total_frames, prefix='Progress:', suffix='Complete', length=50)
+print_progress_bar(0, total_frames, prefix='Progress:', suffix='Complete')
 frames = []
 tracks = []
 counted_vehicles = []
@@ -75,7 +75,7 @@ while video.isOpened():
         break
     if frame_number % FRAME_SKIP == 0:  # only do tracking and detection every FRAME_SKIP frames
         # do the detection on the frame and get in format needed for tracker
-        detections = get_output_format(object_detector.detect(frame=frame, confThreshold=0.5))
+        detections = get_output_format(object_detector.detect(frame=frame, confThreshold=0.7))
         # track
         tracks = tracker.update_tracks(detections, frame=frame)
         # iterate through all the tracks to draw onto the image
@@ -102,7 +102,7 @@ while video.isOpened():
     # add the frame with the drawn on bounding boxes to the frame list
     frames.append(frame)
     # print(frame_number)  # this is for debugging
-    print_progress_bar(frame_number, total_frames, prefix='Progress:', suffix='Complete', length=50)
+    print_progress_bar(frame_number, total_frames, prefix='Progress:', suffix='Complete')
     # increment the frame number
     frame_number = frame_number + 1
 
@@ -112,7 +112,7 @@ img = frames[0]
 height, width, layers = img.shape
 # choose codec according to format needed
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-video = cv2.VideoWriter('outputs/test_video_bike_output_2.mp4', fourcc, 25, (width, height))
+video = cv2.VideoWriter('outputs/test_video_bike_output_6.mp4', fourcc, 25, (width, height))
 for frame in frames:
     video.write(frame)
 video.release()
