@@ -59,7 +59,7 @@ object_detector.setInputParams(scale=1 / 255, size=(416, 416), swapRB=True)
 # read in video
 video = cv2.VideoCapture('inputs/test_video_bike_stab_2.mp4')
 
-FRAME_SKIP = 5
+FRAME_SKIP = 1
 frame_number = 1
 total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
 print_progress_bar(0, total_frames, prefix='Progress:', suffix='Complete')
@@ -75,7 +75,7 @@ while video.isOpened():
         break
     if frame_number % FRAME_SKIP == 0:  # only do tracking and detection every FRAME_SKIP frames
         # do the detection on the frame and get in format needed for tracker
-        detections = get_output_format(object_detector.detect(frame=frame, confThreshold=0.7))
+        detections = get_output_format(object_detector.detect(frame=frame, confThreshold=0.7, nmsThreshold=0.4))
         # track
         tracks = tracker.update_tracks(detections, frame=frame)
         # iterate through all the tracks to draw onto the image
@@ -87,6 +87,7 @@ while video.isOpened():
             counted_vehicles.append(track_id)
         # get bounding box min x, min y, max x, max y
         bb = track.to_ltrb(orig=True)
+        # bb = track.original_ltwh
         # draw bounding box
         cv2.rectangle(frame, (int(bb[0]), int(bb[1])), (int(bb[2]), int(bb[3])),
                       color=(0, 255, 0), thickness=3)
@@ -112,7 +113,7 @@ img = frames[0]
 height, width, layers = img.shape
 # choose codec according to format needed
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-video = cv2.VideoWriter('outputs/test_video_bike_output_6.mp4', fourcc, 25, (width, height))
+video = cv2.VideoWriter('outputs/test_video_bike_output_8.mp4', fourcc, 25, (width, height))
 for frame in frames:
     video.write(frame)
 video.release()
