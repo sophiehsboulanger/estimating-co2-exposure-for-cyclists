@@ -8,7 +8,7 @@ def get_output_format(frame_detections):
     # define output list
     output = []
     # define desired classes
-    target_classes = [1, 2, 3, 5, 7]  # is currently set to car, bicycle, truck, bus and motorbike
+    target_classes = [1, 3, 5, 7]  # is currently set to car, truck, bus and motorbike
     # unpack the tuple to get individual arrays
     class_ids, scores, boxes = frame_detections
     for (classId, score, box) in zip(class_ids, scores, boxes):
@@ -63,12 +63,19 @@ object_detector.setInputParams(scale=1 / 255, size=(416, 416), swapRB=True)
 video = cv2.VideoCapture('inputs/full_video.mp4')
 
 FRAME_SKIP = 5
+TOTAL_FRAMES = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+FRAME_WIDTH = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
+FRAME_HEIGHT = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
 frame_number = 1
-total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
-print_progress_bar(0, total_frames, prefix='Progress:', suffix='Complete')
 frames = []
 tracks = []
 counted_vehicles = []
+
+# choose codec according to format needed
+fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+output_video = cv2.VideoWriter('outputs/full_video_output.mp4', fourcc, 25, (FRAME_WIDTH, FRAME_HEIGHT))
+
+print_progress_bar(0, TOTAL_FRAMES, prefix='Progress:', suffix='Complete')
 while video.isOpened():
     ret, frame = video.read()
 
@@ -112,21 +119,14 @@ while video.isOpened():
                     thickness=3)
         # print(track_id)
     # add the frame with the drawn on bounding boxes to the frame list
-    frames.append(frame)
+    # frames.append(frame)
+    # save the frame to the output video
+    output_video.write(frame)
     # print(frame_number)  # this is for debugging
-    print_progress_bar(frame_number, total_frames, prefix='Progress:', suffix='Complete')
+    print_progress_bar(frame_number, TOTAL_FRAMES, prefix='Progress:', suffix='Complete')
     # increment the frame number
     frame_number = frame_number + 1
 
-video.release()
-# get the first image in the array to get size params
-img = frames[0]
-height, width, layers = img.shape
-# choose codec according to format needed
-fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-video = cv2.VideoWriter('outputs/full_video_output.mp4', fourcc, 25, (width, height))
-for frame in frames:
-    video.write(frame)
 video.release()
 print('Finished processing video')
 print('Counted vehicles: %d' % len(counted_vehicles))
