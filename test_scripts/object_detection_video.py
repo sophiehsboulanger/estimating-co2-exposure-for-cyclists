@@ -59,7 +59,8 @@ while video.isOpened():
                           color=(0, 255, 0), thickness=3)
 
             # text
-            text = '%s: %.2f' % (classes[classId], score)
+            # text = '%s: %.2f' % (classes[classId], score)
+            text = str(score)
             cv2.putText(frame, text, (box[0], box[1] - 5), cv2.FONT_HERSHEY_SIMPLEX, 1,
                         color=(0, 255, 0), thickness=2)
     frames.append(frame)
