@@ -1,5 +1,8 @@
+import sys
 from deep_sort_realtime.deepsort_tracker import DeepSort
 import cv2
+import torch
+import os.path
 
 
 # get the output from model and put it in the correct format for object detector. A list of detections, each in tuples
@@ -41,8 +44,11 @@ def print_progress_bar(iteration, total, prefix='', suffix='', decimals=1, lengt
         print()
 
 
+# check for gpu
+gpu = torch.cuda.is_available()
+
 # define the tracker
-tracker = DeepSort(max_age=5, nms_max_overlap=0.5, embedder_gpu=True)
+tracker = DeepSort(max_age=5, nms_max_overlap=0.5, embedder_gpu=gpu)
 # tracker.tracker.n_init should be the minimum age before a track is confirmed
 tracker.tracker.n_init = 5
 
@@ -59,8 +65,15 @@ object_detector = cv2.dnn_DetectionModel(net)
 # set the image size and input params
 object_detector.setInputParams(scale=1 / 255, size=(416, 416), swapRB=True)
 
-# read in video
-video = cv2.VideoCapture('inputs/full_video.mp4')
+# video file path
+path = 'inputs/full_video.mp4'
+# check if file exists
+if os.path.exists(path):
+    # read in video
+    video = cv2.VideoCapture('inputs/full_video.mp4')
+else:
+    # if file doesn't exist, exit
+    sys.exit('File does not exist')
 
 FRAME_SKIP = 5
 TOTAL_FRAMES = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
