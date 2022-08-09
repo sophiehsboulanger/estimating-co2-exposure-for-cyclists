@@ -44,103 +44,108 @@ def print_progress_bar(iteration, total, prefix='', suffix='', decimals=1, lengt
         print()
 
 
-# check for gpu
-gpu = torch.cuda.is_available()
+def main():
+    # check for gpu
+    gpu = torch.cuda.is_available()
 
-# define the tracker
-tracker = DeepSort(max_age=5, nms_max_overlap=0.5, embedder_gpu=gpu)
-# tracker.tracker.n_init should be the minimum age before a track is confirmed
-tracker.tracker.n_init = 5
+    # define the tracker
+    tracker = DeepSort(max_age=5, nms_max_overlap=0.5, embedder_gpu=gpu)
+    # tracker.tracker.n_init should be the minimum age before a track is confirmed
+    tracker.tracker.n_init = 5
 
-# open the class names files and then read them into a list
-with open('yolo_config_files/coco.names', 'r') as f:
-    classes = f.read().splitlines()
+    # open the class names files and then read them into a list
+    with open('yolo_config_files/coco.names', 'r') as f:
+        classes = f.read().splitlines()
 
-# read in the network from the saved config and weight files
-net = cv2.dnn.readNetFromDarknet('yolo_config_files/yolov4.cfg', 'yolo_config_files/yolov4.weights')
+    # read in the network from the saved config and weight files
+    net = cv2.dnn.readNetFromDarknet('yolo_config_files/yolov4.cfg', 'yolo_config_files/yolov4.weights')
 
-# set the network to be a detection model
-object_detector = cv2.dnn_DetectionModel(net)
+    # set the network to be a detection model
+    object_detector = cv2.dnn_DetectionModel(net)
 
-# set the image size and input params
-object_detector.setInputParams(scale=1 / 255, size=(416, 416), swapRB=True)
+    # set the image size and input params
+    object_detector.setInputParams(scale=1 / 255, size=(416, 416), swapRB=True)
 
-# video file path
-path = 'inputs/full_video.mp4'
-# check if file exists
-if os.path.exists(path):
-    # read in video
-    video = cv2.VideoCapture('inputs/full_video.mp4')
-else:
-    # if file doesn't exist, exit
-    sys.exit('File does not exist')
+    # video file path
+    path = 'inputs/test_video_1.mp4'
+    # check if file exists
+    if os.path.exists(path):
+        # read in video
+        video = cv2.VideoCapture(path)
+    else:
+        # if file doesn't exist, exit
+        sys.exit('File does not exist')
 
-FRAME_SKIP = 5
-TOTAL_FRAMES = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
-FRAME_WIDTH = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
-FRAME_HEIGHT = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
-frame_number = 1
-frames = []
-tracks = []
-counted_vehicles = []
+    FRAME_SKIP = 5
+    TOTAL_FRAMES = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+    FRAME_WIDTH = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
+    FRAME_HEIGHT = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    frame_number = 1
+    frames = []
+    tracks = []
+    counted_vehicles = []
 
-# choose codec according to format needed
-fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-output_video = cv2.VideoWriter('outputs/full_video_output.mp4', fourcc, 25, (FRAME_WIDTH, FRAME_HEIGHT))
+    # choose codec according to format needed
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    output_video = cv2.VideoWriter('outputs/gui_test.mp4', fourcc, 25, (FRAME_WIDTH, FRAME_HEIGHT))
 
-print_progress_bar(0, TOTAL_FRAMES, prefix='Progress:', suffix='Complete')
-while video.isOpened():
-    ret, frame = video.read()
+    print_progress_bar(0, TOTAL_FRAMES, prefix='Progress:', suffix='Complete')
+    while video.isOpened():
+        ret, frame = video.read()
 
-    # if frame is read correctly ret is True
-    if not ret:
-        print('Cant receive frame, stream end. Exiting...')
-        break
-    if frame_number % FRAME_SKIP == 0:  # only do tracking and detection every FRAME_SKIP frames
-        # do the detection on the frame and get in format needed for tracker
-        detections = get_output_format(object_detector.detect(frame=frame, confThreshold=0.75, nmsThreshold=0.4))
-        # track
-        tracks = tracker.update_tracks(detections, frame=frame)
-        # iterate through all the tracks to draw onto the image
-    for track in tracks:
-        # print('tracking')  # this is for debugging
-        # get track id
-        track_id = track.track_id
-        if track_id not in counted_vehicles and track.state == 2:
-            counted_vehicles.append(track_id)
-        # get bounding box min x, min y, max x, max y
-        bb = track.to_ltrb(orig=True)
-        # if the track confirmed set the bounding box colour to green
-        if track.state == 2:
-            color = (0, 255, 0)
-        # else set the colour to red
-        else:
-            color = (0, 0, 255)
+        # if frame is read correctly ret is True
+        if not ret:
+            print('Cant receive frame, stream end. Exiting...')
+            break
+        if frame_number % FRAME_SKIP == 0:  # only do tracking and detection every FRAME_SKIP frames
+            # do the detection on the frame and get in format needed for tracker
+            detections = get_output_format(object_detector.detect(frame=frame, confThreshold=0.75, nmsThreshold=0.4))
+            # track
+            tracks = tracker.update_tracks(detections, frame=frame)
+            # iterate through all the tracks to draw onto the image
+        for track in tracks:
+            # print('tracking')  # this is for debugging
+            # get track id
+            track_id = track.track_id
+            if track_id not in counted_vehicles and track.state == 2:
+                counted_vehicles.append(track_id)
+            # get bounding box min x, min y, max x, max y
+            bb = track.to_ltrb(orig=True)
+            # if the track confirmed set the bounding box colour to green
+            if track.state == 2:
+                color = (0, 255, 0)
+            # else set the colour to red
+            else:
+                color = (0, 0, 255)
 
-        # draw bounding box
-        cv2.rectangle(frame, (int(bb[0]), int(bb[1])), (int(bb[2]), int(bb[3])),
-                      color=color, thickness=3)
+            # draw bounding box
+            cv2.rectangle(frame, (int(bb[0]), int(bb[1])), (int(bb[2]), int(bb[3])),
+                          color=color, thickness=3)
 
-        # get the detected class
-        detected_class = track.get_det_class()
-        # get the id of the track
-        # text = 'track id: %s, class: %s' % (track_id, detected_class)
-        text = track_id
+            # get the detected class
+            detected_class = track.get_det_class()
+            # get the id of the track
+            # text = 'track id: %s, class: %s' % (track_id, detected_class)
+            text = track_id
 
-        # put the text onto the image
-        cv2.putText(frame, text, (int(bb[0]) - 20, int(bb[3])), cv2.FONT_HERSHEY_SIMPLEX, 1, color=color,
-                    thickness=3)
-        # print(track_id)
-    # add the frame with the drawn on bounding boxes to the frame list
-    # frames.append(frame)
-    # save the frame to the output video
-    output_video.write(frame)
-    # print(frame_number)  # this is for debugging
-    print_progress_bar(frame_number, TOTAL_FRAMES, prefix='Progress:', suffix='Complete')
-    # increment the frame number
-    frame_number = frame_number + 1
+            # put the text onto the image
+            cv2.putText(frame, text, (int(bb[0]) - 20, int(bb[3])), cv2.FONT_HERSHEY_SIMPLEX, 1, color=color,
+                        thickness=3)
+            # print(track_id)
+        # add the frame with the drawn on bounding boxes to the frame list
+        # frames.append(frame)
+        # save the frame to the output video
+        output_video.write(frame)
+        # print(frame_number)  # this is for debugging
+        print_progress_bar(frame_number, TOTAL_FRAMES, prefix='Progress:', suffix='Complete')
+        # increment the frame number
+        frame_number = frame_number + 1
 
-video.release()
-print('Finished processing video')
-print('Counted vehicles: %d' % len(counted_vehicles))
-print(counted_vehicles)
+    video.release()
+    print('Finished processing video')
+    print('Counted vehicles: %d' % len(counted_vehicles))
+    print(counted_vehicles)
+
+
+if __name__ == "__main__":
+    main()

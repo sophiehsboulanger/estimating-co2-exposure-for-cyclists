@@ -1,5 +1,5 @@
 import PySimpleGUI as sg
-
+import counter
 text_box_size = (17, 1)
 input_line = [sg.Text("Input Video:", size=text_box_size), sg.In(size=(25, 1), key="-INPUT-"), sg.FileBrowse()]
 output_location_line = [sg.Text("Output Video Location:", size=text_box_size), sg.In(size=(25, 1), key="-OUTPUT_LOCATION-"), sg.FolderBrowse()]
@@ -25,6 +25,6 @@ while True:
     if event == sg.WIN_CLOSED:
         break
     if event == '-PROCESS-':
-        print("Button pressed")
+        counter.main()
 
 window.close()
