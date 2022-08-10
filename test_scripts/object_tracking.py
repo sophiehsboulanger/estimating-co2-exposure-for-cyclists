@@ -21,7 +21,7 @@ def get_output_format(frame_detections):
 tracker = DeepSort(max_age=30, nn_budget=70, nms_max_overlap=0.5, embedder_gpu=False)
 
 # open the class names files and then read them into a list
-with open('yolo_config_files/coco.names', 'r') as f:
+with open('../yolo_config_files/coco.names', 'r') as f:
     classes = f.read().splitlines()
 
 # read in the network from the saved config and weight files
