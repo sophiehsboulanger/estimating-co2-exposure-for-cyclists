@@ -11,7 +11,7 @@ def get_output_format(frame_detections):
     # define output list
     output = []
     # define desired classes
-    target_classes = [1, 3, 5, 7]  # is currently set to car, truck, bus and motorbike
+    target_classes = [2, 3, 5, 7]  # is currently set to car, motorbike, bus and truck
     # unpack the tuple to get individual arrays
     class_ids, scores, boxes = frame_detections
     for (classId, score, box) in zip(class_ids, scores, boxes):
@@ -44,14 +44,14 @@ def print_progress_bar(iteration, total, prefix='', suffix='', decimals=1, lengt
         print()
 
 
-def main():
+def main(max_age, min_age, nms_max_overlap, frame_skip, input_file, output, conf_threshold, nms_threshold):
     # check for gpu
     gpu = torch.cuda.is_available()
 
     # define the tracker
-    tracker = DeepSort(max_age=5, nms_max_overlap=0.5, embedder_gpu=gpu)
+    tracker = DeepSort(max_age, nms_max_overlap, embedder_gpu=gpu)
     # tracker.tracker.n_init should be the minimum age before a track is confirmed
-    tracker.tracker.n_init = 5
+    tracker.tracker.n_init = min_age
 
     # open the class names files and then read them into a list
     with open('yolo_config_files/coco.names', 'r') as f:
@@ -66,17 +66,14 @@ def main():
     # set the image size and input params
     object_detector.setInputParams(scale=1 / 255, size=(416, 416), swapRB=True)
 
-    # video file path
-    path = 'inputs/test_video_1.mp4'
     # check if file exists
-    if os.path.exists(path):
+    if os.path.exists(input_file):
         # read in video
-        video = cv2.VideoCapture(path)
+        video = cv2.VideoCapture(input_file)
     else:
         # if file doesn't exist, exit
         sys.exit('File does not exist')
 
-    FRAME_SKIP = 5
     TOTAL_FRAMES = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
     FRAME_WIDTH = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
     FRAME_HEIGHT = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -87,7 +84,7 @@ def main():
 
     # choose codec according to format needed
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    output_video = cv2.VideoWriter('outputs/gui_test.mp4', fourcc, 25, (FRAME_WIDTH, FRAME_HEIGHT))
+    output_video = cv2.VideoWriter(output, fourcc, 25, (FRAME_WIDTH, FRAME_HEIGHT))
 
     print_progress_bar(0, TOTAL_FRAMES, prefix='Progress:', suffix='Complete')
     while video.isOpened():
@@ -97,9 +94,9 @@ def main():
         if not ret:
             print('Cant receive frame, stream end. Exiting...')
             break
-        if frame_number % FRAME_SKIP == 0:  # only do tracking and detection every FRAME_SKIP frames
+        if frame_number % frame_skip == 0:  # only do tracking and detection every FRAME_SKIP frames
             # do the detection on the frame and get in format needed for tracker
-            detections = get_output_format(object_detector.detect(frame=frame, confThreshold=0.75, nmsThreshold=0.4))
+            detections = get_output_format(object_detector.detect(frame=frame, confThreshold=conf_threshold, nmsThreshold=nms_threshold))
             # track
             tracks = tracker.update_tracks(detections, frame=frame)
             # iterate through all the tracks to draw onto the image
@@ -148,4 +145,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    input_file = 'inputs/test_video_1.mp4'
+    output_file = 'outputs/test.mp4'
+    main(max_age=5, min_age=5, nms_max_overlap=0.5, frame_skip=5, input_file=input_file, output=output_file,
+         conf_threshold=0.75, nms_threshold=0.4)
