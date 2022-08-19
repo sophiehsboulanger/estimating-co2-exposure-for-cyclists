@@ -48,7 +48,6 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
          nms_threshold=0.4):
     # check for gpu
     gpu = torch.cuda.is_available()
-
     # define the tracker
     tracker = DeepSort(max_age, nms_max_overlap, embedder_gpu=gpu)
     # tracker.tracker.n_init should be the minimum age before a track is confirmed
@@ -144,7 +143,7 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
     print('Finished processing video')
     print('Counted vehicles: %d' % len(counted_vehicles))
     print(counted_vehicles)
-    return counted_vehicles
+    return len(counted_vehicles)
 
 
 if __name__ == "__main__":
