@@ -44,7 +44,8 @@ def print_progress_bar(iteration, total, prefix='', suffix='', decimals=1, lengt
         print()
 
 
-def main(max_age, min_age, nms_max_overlap, frame_skip, input_file, output, conf_threshold, nms_threshold):
+def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_skip=5, conf_threshold=0.75,
+         nms_threshold=0.4):
     # check for gpu
     gpu = torch.cuda.is_available()
 
@@ -96,7 +97,8 @@ def main(max_age, min_age, nms_max_overlap, frame_skip, input_file, output, conf
             break
         if frame_number % frame_skip == 0:  # only do tracking and detection every FRAME_SKIP frames
             # do the detection on the frame and get in format needed for tracker
-            detections = get_output_format(object_detector.detect(frame=frame, confThreshold=conf_threshold, nmsThreshold=nms_threshold))
+            detections = get_output_format(
+                object_detector.detect(frame=frame, confThreshold=conf_threshold, nmsThreshold=nms_threshold))
             # track
             tracks = tracker.update_tracks(detections, frame=frame)
             # iterate through all the tracks to draw onto the image
@@ -142,10 +144,10 @@ def main(max_age, min_age, nms_max_overlap, frame_skip, input_file, output, conf
     print('Finished processing video')
     print('Counted vehicles: %d' % len(counted_vehicles))
     print(counted_vehicles)
+    return counted_vehicles
 
 
 if __name__ == "__main__":
     input_file = 'inputs/test_video_1.mp4'
     output_file = 'outputs/test.mp4'
-    main(max_age=5, min_age=5, nms_max_overlap=0.5, frame_skip=5, input_file=input_file, output=output_file,
-         conf_threshold=0.75, nms_threshold=0.4)
+    main(input_file, output_file)
