@@ -133,7 +133,7 @@ dmypy.json
 *.png
 *.jpg
 *.jpeg
-
+*.xlsx
 
 /.idea/dissertaion.iml
 /.idea/misc.xml
