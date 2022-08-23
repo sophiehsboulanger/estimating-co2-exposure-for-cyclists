@@ -128,15 +128,17 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Input and output folders
-inputs/
-outputs/
 
-yolo_config_files/
+*.mp4
+*.png
+*.jpg
+*.jpeg
+
 
 /.idea/dissertaion.iml
 /.idea/misc.xml
 /.idea/modules.xml
 /.idea/inspectionProfiles/profiles_settings.xml
 /.idea/vcs.xml
-/ground_truth/
+
+/yolo_config_files/yolov4.weights
