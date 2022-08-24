@@ -28,10 +28,9 @@ def get_output_format(frame_detections, min_size):
     # unpack the tuple to get individual arrays
     class_ids, scores, boxes = frame_detections
     for (classId, score, box) in zip(class_ids, scores, boxes):
-        # only pass bounding boxes if they are a target class and bigger than the minimum size
+        # only pass bounding boxes if they are a target class
         if classId in target_classes:
-            if get_bb_area(box) >= min_size:
-                output.append((box, score, classId))
+            output.append((box, score, classId))
     return output
 
 
@@ -120,10 +119,10 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
             # print('tracking')  # this is for debugging
             # get track id
             track_id = track.track_id
-            if track_id not in counted_vehicles and track.state == 2:
-                counted_vehicles.append(track_id)
             # get bounding box min x, min y, max x, max y
             bb = track.to_ltrb(orig=True)
+            if track_id not in counted_vehicles and track.state == 2 and get_bb_area(bb) >= min_size:
+                counted_vehicles.append(track_id)
             # if the track confirmed set the bounding box colour to green
             if track.state == 2:
                 color = (0, 255, 0)
