@@ -5,9 +5,22 @@ import torch
 import os.path
 
 
+def get_bb_area(box):
+    x1 = box[0]
+    y1 = box[1]
+    x2 = box[2]
+    y2 = box[3]
+
+    width = x2 - x1
+    height = y2 - y1
+
+    area = width * height
+    return abs(width * height)
+
+
 # get the output from model and put it in the correct format for object detector. A list of detections, each in tuples
 # of ( [left,top,w,h], confidence, detection_class )
-def get_output_format(frame_detections):
+def get_output_format(frame_detections, min_size):
     # define output list
     output = []
     # define desired classes
@@ -15,8 +28,10 @@ def get_output_format(frame_detections):
     # unpack the tuple to get individual arrays
     class_ids, scores, boxes = frame_detections
     for (classId, score, box) in zip(class_ids, scores, boxes):
+        # only pass bounding boxes if they are a target class and bigger than the minimum size
         if classId in target_classes:
-            output.append((box, score, classId))
+            if get_bb_area(box) >= min_size:
+                output.append((box, score, classId))
     return output
 
 
@@ -45,7 +60,7 @@ def print_progress_bar(iteration, total, prefix='', suffix='', decimals=1, lengt
 
 
 def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_skip=5, conf_threshold=0.75,
-         nms_threshold=0.4):
+         nms_threshold=0.4, min_size=100000):
     # check for gpu
     gpu = torch.cuda.is_available()
     # define the tracker
@@ -97,7 +112,7 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
         if frame_number % frame_skip == 0:  # only do tracking and detection every FRAME_SKIP frames
             # do the detection on the frame and get in format needed for tracker
             detections = get_output_format(
-                object_detector.detect(frame=frame, confThreshold=conf_threshold, nmsThreshold=nms_threshold))
+                object_detector.detect(frame=frame, confThreshold=conf_threshold, nmsThreshold=nms_threshold), min_size)
             # track
             tracks = tracker.update_tracks(detections, frame=frame)
             # iterate through all the tracks to draw onto the image
@@ -129,6 +144,7 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
             # put the text onto the image
             cv2.putText(frame, text, (int(bb[0]) - 20, int(bb[3])), cv2.FONT_HERSHEY_SIMPLEX, 1, color=color,
                         thickness=3)
+
             # print(track_id)
         # add the frame with the drawn on bounding boxes to the frame list
         # frames.append(frame)
@@ -147,6 +163,6 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
 
 
 if __name__ == "__main__":
-    input_file = 'inputs/test_video_1.mp4'
-    output_file = 'outputs/test.mp4'
+    input_file = 'ground_truth/gt_in/gt_1.mp4'
+    output_file = 'outputs/area.mp4'
     main(input_file, output_file)

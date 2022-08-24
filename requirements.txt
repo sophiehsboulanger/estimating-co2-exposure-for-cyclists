@@ -85,3 +85,7 @@ wincertstore=0.2=py310haa95532_2
 xz=5.2.5=h8cc25b3_1
 zlib=1.2.12=h8cc25b3_2
 zstd=1.5.2=h19a0ad4_0
+
+pysimplegui~=4.60.3
+opencv-python~=4.6.0.66
+pandas~=1.4.3
