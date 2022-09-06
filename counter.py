@@ -20,7 +20,7 @@ def get_bb_area(box):
 
 # get the output from model and put it in the correct format for object detector. A list of detections, each in tuples
 # of ( [left,top,w,h], confidence, detection_class )
-def get_output_format(frame_detections, min_size):
+def get_output_format(frame_detections):
     # define output list
     output = []
     # define desired classes
@@ -59,7 +59,7 @@ def print_progress_bar(iteration, total, prefix='', suffix='', decimals=1, lengt
 
 
 def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_skip=5, conf_threshold=0.75,
-         nms_threshold=0.4, min_size=100000):
+         nms_threshold=0.4, min_size=12800):
     # check for gpu
     gpu = torch.cuda.is_available()
     # define the tracker
@@ -111,7 +111,7 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
         if frame_number % frame_skip == 0:  # only do tracking and detection every FRAME_SKIP frames
             # do the detection on the frame and get in format needed for tracker
             detections = get_output_format(
-                object_detector.detect(frame=frame, confThreshold=conf_threshold, nmsThreshold=nms_threshold), min_size)
+                object_detector.detect(frame=frame, confThreshold=conf_threshold, nmsThreshold=nms_threshold))
             # track
             tracks = tracker.update_tracks(detections, frame=frame)
             # iterate through all the tracks to draw onto the image
@@ -124,7 +124,7 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
             if track_id not in counted_vehicles and track.state == 2 and get_bb_area(bb) >= min_size:
                 counted_vehicles.append(track_id)
             # if the track confirmed set the bounding box colour to green
-            if track.state == 2:
+            if track.state == 2 and get_bb_area(bb) >= min_size:
                 color = (0, 255, 0)
             # else set the colour to red
             else:
