@@ -23,7 +23,7 @@ def print_progress_bar(iteration, total, prefix='', suffix='', decimals=1, lengt
         print()
 
 
-video = cv2.VideoCapture('../inputs/test_video_bike_stab_2.mp4')
+video = cv2.VideoCapture('../inputs/test_video_3.mp4')
 # open the class names files and then read them into a list
 with open('../yolo_config_files/coco.names', 'r') as f:
     classes = f.read().splitlines()
@@ -59,8 +59,7 @@ while video.isOpened():
                           color=(0, 255, 0), thickness=3)
 
             # text
-            # text = '%s: %.2f' % (classes[classId], score)
-            text = str(score)
+            text = '%s: %.2f' % (classes[classId], round(score,2))
             cv2.putText(frame, text, (box[0], box[1] - 5), cv2.FONT_HERSHEY_SIMPLEX, 1,
                         color=(0, 255, 0), thickness=2)
     frames.append(frame)
@@ -73,7 +72,7 @@ img = frames[0]
 height, width, layers = img.shape
 # choose codec according to format needed
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-video = cv2.VideoWriter('../outputs/test_video_bike_output_7.mp4', fourcc, 25, (width, height))
+video = cv2.VideoWriter('../demos/object_detection_video3.mp4', fourcc, 25, (width, height))
 for frame in frames:
     video.write(frame)
 video.release()

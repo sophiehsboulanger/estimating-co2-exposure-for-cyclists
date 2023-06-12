@@ -14,12 +14,13 @@ def get_bb_area(box):
     width = x2 - x1
     height = y2 - y1
 
+    area = width * height
     return abs(width * height)
 
 
 # get the output from model and put it in the correct format for object detector. A list of detections, each in tuples
 # of ( [left,top,w,h], confidence, detection_class )
-def get_output_format(frame_detections):
+def get_output_format(frame_detections, min_size):
     # define output list
     output = []
     # define desired classes
@@ -58,7 +59,7 @@ def print_progress_bar(iteration, total, prefix='', suffix='', decimals=1, lengt
 
 
 def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_skip=5, conf_threshold=0.75,
-         nms_threshold=0.4, min_size=12800):
+         nms_threshold=0.4, min_size=100000):
     # check for gpu
     gpu = torch.cuda.is_available()
     # define the tracker
@@ -67,8 +68,8 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
     tracker.tracker.n_init = min_age
 
     # open the class names files and then read them into a list
-    with open('yolo_config_files/coco.names', 'r') as f:
-        classes = f.read().splitlines()
+    # with open('yolo_config_files/coco.names', 'r') as f:
+    #   classes = f.read().splitlines()
 
     # read in the network from the saved config and weight files
     net = cv2.dnn.readNetFromDarknet('yolo_config_files/yolov4.cfg', 'yolo_config_files/yolov4.weights')
@@ -91,10 +92,8 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
     FRAME_WIDTH = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
     FRAME_HEIGHT = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
     frame_number = 1
-    frames = []
     tracks = []
     counted_vehicles = []
-    counted_classes = []
 
     # choose codec according to format needed
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
@@ -111,10 +110,9 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
         if frame_number % frame_skip == 0:  # only do tracking and detection every FRAME_SKIP frames
             # do the detection on the frame and get in format needed for tracker
             detections = get_output_format(
-                object_detector.detect(frame=frame, confThreshold=conf_threshold, nmsThreshold=nms_threshold))
-            if len(detections) > 0:
-                # track
-                tracks = tracker.update_tracks(detections, frame=frame)
+                object_detector.detect(frame=frame, confThreshold=conf_threshold, nmsThreshold=nms_threshold), min_size)
+            # track
+            tracks = tracker.update_tracks(detections, frame=frame)
             # iterate through all the tracks to draw onto the image
         for track in tracks:
             # print('tracking')  # this is for debugging
@@ -124,9 +122,8 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
             bb = track.to_ltrb(orig=True)
             if track_id not in counted_vehicles and track.state == 2 and get_bb_area(bb) >= min_size:
                 counted_vehicles.append(track_id)
-                counted_classes.append(classes[track.get_det_class()])
             # if the track confirmed set the bounding box colour to green
-            if track.state == 2 and get_bb_area(bb) >= min_size:
+            if track.state == 2:
                 color = (0, 255, 0)
             # else set the colour to red
             else:
@@ -160,15 +157,10 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
     print('Finished processing video')
     print('Counted vehicles: %d' % len(counted_vehicles))
     print(counted_vehicles)
-    unique = set(counted_classes)
-    for counted_class in unique:
-        class_count = counted_classes.count(counted_class)
-        print("%s: %d" % (counted_class, class_count))
-
     return len(counted_vehicles)
 
 
 if __name__ == "__main__":
-    input_file = 'ground_truth/gt_in/gt_2.mp4'
-    output_file = 'outputs/1206.mp4'
+    input_file = 'ground_truth/gt_in/gt_1.mp4'
+    output_file = 'outputs/area.mp4'
     main(input_file, output_file)

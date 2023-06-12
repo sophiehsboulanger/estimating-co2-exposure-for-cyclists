@@ -1,14 +1,15 @@
 import cv2
 
 # read in the image
-img = cv2.imread('inputs/frame20.png')
+img = cv2.imread("../inputs/image5.png")
+img = cv2.resize(img, (960, 540))
 
 # open the class names files and then read them into a list
-with open('yolo_config_files/coco.names', 'r') as f:
+with open('../yolo_config_files/coco.names', 'r') as f:
     classes = f.read().splitlines()
 
 # read in the network from the saved config and weigh files
-net = cv2.dnn.readNetFromDarknet('yolo_config_files/yolov4.cfg', 'yolo_config_files/yolov4.weights')
+net = cv2.dnn.readNetFromDarknet('../yolo_config_files/yolov4.cfg', '../yolo_config_files/yolov4.weights')
 
 # net the network to be a detection model
 model = cv2.dnn_DetectionModel(net)
@@ -17,8 +18,8 @@ model = cv2.dnn_DetectionModel(net)
 model.setInputParams(scale=1 / 255, size=(416, 416), swapRB=True)
 
 # do detection
-classIds, scores, boxes = model.detect(img, confThreshold=0.7, nmsThreshold=0.4)
-
+classIds, scores, boxes = model.detect(img, confThreshold=0.80, nmsThreshold=0.4)
+print(classIds)
 
 # put bounding boxes, score and class id on image
 for (classId, score, box) in zip(classIds, scores, boxes):
@@ -30,7 +31,6 @@ for (classId, score, box) in zip(classIds, scores, boxes):
     text = '%s: %.2f' % (classes[classId], score)
     cv2.putText(img, text, (box[0], box[1] - 5), cv2.FONT_HERSHEY_SIMPLEX, 1,
                 color=(0, 255, 0), thickness=2)
-
 
 # get unique values in the detected classes
 detected_classes = []
@@ -48,4 +48,4 @@ for classId in detected_classes:
     print('%s: %d' % (classes[classId], count))
 
 # save image
-cv2.imwrite('outputs/frame20.jpg', img)
+cv2.imwrite('../demos/object_detection5.png', img)
