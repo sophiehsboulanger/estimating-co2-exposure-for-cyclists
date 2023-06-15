@@ -142,3 +142,7 @@ dmypy.json
 /.idea/vcs.xml
 
 /yolo_config_files/yolov4.weights
+/.idea/other.xml
+/.idea/workspace-Sophies-Laptop.xml
+/yolo_config_files/yolov4-obj_best.weights
+/yolo_config_files/yolov4NEW.cfg
