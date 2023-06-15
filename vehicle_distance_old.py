@@ -3,7 +3,7 @@
 import cv2
 import numpy as np
 import torch
-from roboflow import Roboflow
+
 
 class VehicleDistanceCalculator:
     """This is a class to contain the vehicle distant calculator object
@@ -36,7 +36,7 @@ class VehicleDistanceCalculator:
         # height of the licence plate characters in mm
         self.known_height = 79
 
-    def debug_imshow(self, title, img):
+    def debug_imshow(self, img, title):
         """Function used to show processed images when in debug mode
 
         :param img: the image to show
@@ -44,34 +44,31 @@ class VehicleDistanceCalculator:
         :param title: the title to display in the output frame, can be used to identify images
         :type title: string
         """
+        cv2.imshow(title, img)
         if self.debug:
-            cv2.imshow(title, img)
             cv2.waitKey(0)
 
     def find_licence_plate(self, img):
-        rf = Roboflow(api_key="gefD2gnKVfDlmkoHBp96")
-        project = rf.workspace().project("license-plate-recognition-rxg4e")
-        lp_detector = project.version(3).model
+        lp_detector = torch.hub.load('C:/Users/sophi/PycharmProjects/licencePlateDetector/yolov5', 'custom',
+                                     path='C:/Users/sophi/PycharmProjects/licencePlateDetector/yolov5/runs/train/exp7/weights/best.pt',
+                                     source='local')  # default
 
-        lp_detector.confidence = 0.6
+        lp_detector.conf = 0.6
 
         # detect the licence plate, should only be one
-        results = lp_detector.predict(img).json()
+        results = lp_detector(img)
         # results.show()
-        #results = results.xyxy[0].cpu().numpy()
+        results = results.xyxy[0].cpu().numpy()
         # print(results)
-        for result in results['predictions']:
-            # get x1, x2, y1, y2 of the bb for the licence plate
-            # example box object from the Pillow library
-            x1 = int(result['x'] - result['width'] / 2)
-            x2 = int(result['x'] + result['width'] / 2)
-            y1 = int(result['y'] - result['height'] / 2)
-            y2 = int(result['y'] + result['height'] / 2)
-            ar = round(result['width'] / result['height'], 2)
-            if 3 <= ar <= 6:
-                self.debug_imshow('found licence plate', img[y1:y2, x1:x2])
+        for result in results:
+            # get xmin, ymin, xmax, ymax of the bb for the licence plate
+            # xyxy = results.xyxy[0].cpu().numpy()
+            # xyxy = xyxy[0]
+            xmin, ymin, xmax, ymax, *rest = np.rint(result).astype('int')
+            ar = round((xmax - xmin) / float((ymax - ymin)), 2)
+            if 4 <= ar <= 6:
                 # return the crop of the licence plate
-                return img[y1:y2, x1:x2]
+                return img[ymin:ymax, xmin:xmax]
 
     def get_average_character_height(self, lp):
         heights = []
@@ -89,12 +86,19 @@ class VehicleDistanceCalculator:
             x, y, w, h = cv2.boundingRect(contour)
             # calculate the aspect ratio
             ar = round(w / float(h), 2)
+            # print(ar)
+            # img2 = img.copy()
+            # cv2.rectangle(img2, (x, y), (x + w, y + h), (0, 255, 0), 1)
+            # cv2.putText(img2, str(ar), (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color=(0, 255, 0), thickness=1, )
+            # cv2.imshow("fdsf", img2)
+            # cv2.waitKey(0)
             # if it's between the accepted aspect ratios
             if self.max_ar >= ar >= self.min_ar:
                 cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 1)
                 # save h in heights
                 heights.append(h)
-        self.debug_imshow("found characters", img)
+        cv2.imshow("fdsf", img)
+        cv2.waitKey(0)
         # return the average height of the characters and exit, otherwise try again
         return round(sum(heights) / len(heights), self.accuracy)
 
@@ -112,7 +116,7 @@ class VehicleDistanceCalculator:
 
 
 if __name__ == "__main__":
-    vdc = VehicleDistanceCalculator(debug=True)
+    vdc = VehicleDistanceCalculator()
     # ----------- set the focal length -----------
     # read in the image
     img = cv2.imread("inputs/straight_2m.png")
