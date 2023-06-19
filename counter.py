@@ -3,6 +3,8 @@ from deep_sort_realtime.deepsort_tracker import DeepSort
 import cv2
 import torch
 import os.path
+import vehicle_distance
+import Vehicle
 
 
 def get_bb_area(box):
@@ -79,7 +81,11 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
     # set the image size and input params
     object_detector.setInputParams(scale=1 / 255, size=(416, 416), swapRB=True)
 
-    # check if file exists
+    # set up the vehicle distance calculator
+    vdc_setup_img = cv2.imread('inputs/straight_2m.png')
+    vdc = vehicle_distance.VehicleDistanceCalculator(vdc_setup_img, 2000)
+
+    # check if input video file exists
     if os.path.exists(input_file):
         # read in video
         video = cv2.VideoCapture(input_file)
@@ -93,9 +99,7 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
     frame_number = 1
     frames = []
     tracks = []
-    counted_vehicles = []
-    counted_classes = []
-
+    vehicles = {}  # track_ids, vehicle object
     # choose codec according to format needed
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     output_video = cv2.VideoWriter(output, fourcc, 25, (FRAME_WIDTH, FRAME_HEIGHT))
@@ -103,7 +107,6 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
     print_progress_bar(0, TOTAL_FRAMES, prefix='Progress:', suffix='Complete')
     while video.isOpened():
         ret, frame = video.read()
-
         # if frame is read correctly ret is True
         if not ret:
             print('Cant receive frame, stream end. Exiting...')
@@ -115,38 +118,55 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
             if len(detections) > 0:
                 # track
                 tracks = tracker.update_tracks(detections, frame=frame)
-            # iterate through all the tracks to draw onto the image
+        # iterate through all the tracks
         for track in tracks:
-            # print('tracking')  # this is for debugging
             # get track id
             track_id = track.track_id
             # get bounding box min x, min y, max x, max y
             bb = track.to_ltrb(orig=True)
-            if track_id not in counted_vehicles and track.state == 2 and get_bb_area(bb) >= min_size:
-                counted_vehicles.append(track_id)
-                counted_classes.append(classes[track.get_det_class()])
-            # if the track confirmed set the bounding box colour to green
+            # if the track id is not already in the list, create a vehicle object and add it to the dictionary
+            if track_id not in vehicles.keys():
+                # create vehicle object
+                vehicle = Vehicle.Vehicle(track_id, track.get_det_class, bb)
+                # add it to the dictionary
+                vehicles[track_id] = vehicle
+            # if the track confirmed and above the minimum area then continue
             if track.state == 2 and get_bb_area(bb) >= min_size:
+                # get the vehicle object associated to the track
+                vehicle = vehicles[track_id]
+                # confirm the count
+                vehicle.confirmed = True
+                # get the cropped vehicle image
+                vehicle_img = frame[int(bb[1]):int(bb[3]), int(bb[0]):int(bb[2])]
+                # placeholder text
+                distance_text = 'no distance'
+                # check there is an image
+                if len(vehicle_img) > 0:
+                    # try and find a licence plate
+                    vehicle_lp = vdc.find_licence_plate(vehicle_img)
+                    if vehicle_lp is not None:
+                        # if a lp is found try and calculate the distance
+                        distance = vdc.distance_to_licence_plate(vehicle_lp)
+                        if distance is not None:
+                            # if a distance is found, put it in meters (2dp)
+                            distance_text = round(distance / 1000, 2)
+                            # add the distance in mm to the vehicles distance list
+                            vehicle.distances.append(distance)
+                else:
+                    # if there is no image print the track id, used for debugging
+                    print(track_id)
+
+                # set the colour of the bounding box to green
                 color = (0, 255, 0)
-            # else set the colour to red
-            else:
-                color = (0, 0, 255)
+                # draw bounding box
+                cv2.rectangle(frame, (int(bb[0]), int(bb[1])), (int(bb[2]), int(bb[3])),
+                              color=color, thickness=3)
+                # format the text
+                text = 'id: {}, distance: {}'.format(track_id, distance_text)
+                # put the text onto the image
+                cv2.putText(frame, text, (int(bb[0]) - 20, int(bb[3])), cv2.FONT_HERSHEY_SIMPLEX, 1, color=color,
+                            thickness=3)
 
-            # draw bounding box
-            cv2.rectangle(frame, (int(bb[0]), int(bb[1])), (int(bb[2]), int(bb[3])),
-                          color=color, thickness=3)
-
-            # get the detected class
-            detected_class = track.get_det_class()
-            # get the id of the track
-            # text = 'track id: %s, class: %s' % (track_id, detected_class)
-            text = track_id
-
-            # put the text onto the image
-            cv2.putText(frame, text, (int(bb[0]) - 20, int(bb[3])), cv2.FONT_HERSHEY_SIMPLEX, 1, color=color,
-                        thickness=3)
-
-            # print(track_id)
         # add the frame with the drawn on bounding boxes to the frame list
         # frames.append(frame)
         # save the frame to the output video
@@ -158,17 +178,17 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
 
     video.release()
     print('Finished processing video')
-    print('Counted vehicles: %d' % len(counted_vehicles))
-    print(counted_vehicles)
-    unique = set(counted_classes)
-    for counted_class in unique:
-        class_count = counted_classes.count(counted_class)
-        print("%s: %d" % (counted_class, class_count))
+    print('Counted vehicles: %d' % len(vehicles))
+    print(vehicles)
+    # unique = set(counted_classes)
+    # for counted_class in unique:
+    #     class_count = counted_classes.count(counted_class)
+    #     print("%s: %d" % (counted_class, class_count))
 
-    return len(counted_vehicles)
+    return len(vehicles)
 
 
 if __name__ == "__main__":
-    input_file = 'ground_truth/gt_in/gt_2.mp4'
-    output_file = 'outputs/1206.mp4'
+    input_file = 'inputs/test_video_bike_stab.mp4'
+    output_file = 'outputs/code_update.mp4'
     main(input_file, output_file)
