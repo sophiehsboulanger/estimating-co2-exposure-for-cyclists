@@ -119,14 +119,14 @@ if __name__ == "__main__":
     vdc = VehicleDistanceCalculator()
     # ----------- set the focal length -----------
     # read in the image
-    img = cv2.imread("inputs/straight_2m.png")
+    img = cv2.imread("../inputs/straight_2m.png")
     # find the licence plate
     lp = vdc.find_licence_plate(img)
     # calculate and set the focal length
     vdc.calculate_focal_length(lp, 2000)
 
     # -------- now test it works on another image ----------
-    img = cv2.imread("inputs/straight_4m.png")
+    img = cv2.imread("../inputs/straight_4m.png")
     lp = vdc.find_licence_plate(img)
     if lp is not None:
         # get the perceived height of the lp characters

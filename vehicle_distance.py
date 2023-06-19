@@ -9,6 +9,11 @@ class VehicleDistanceCalculator:
 
     focal_length is to be calculated later, known_height is the known height of a licence plate character in mm
 
+    :param img: image of a vehicle with a licence plate
+
+    :param distance: known distance from the camera to the license plate in mm
+    :type distance: int
+
     :param min_ar: the minimum aspect ratio of licence plate character, defaults to 0.55
     :type min_ar: int, optional
 
@@ -20,22 +25,26 @@ class VehicleDistanceCalculator:
 
     """
 
-    def __init__(self, min_ar=0.55, max_ar=0.75, debug=False):
+    def __init__(self, img, distance, min_ar=0.55, max_ar=0.75, debug=False):
         """Constructor method
         """
-        self.min_ar = min_ar
-        self.max_ar = max_ar
-        self.debug = debug
-        # focal length of the camera, to be calculated
-        self.focal_length = None
-        # height of the licence plate characters in mm
-        self.known_height = 79
-
         # lp detector
         rf = Roboflow(api_key="gefD2gnKVfDlmkoHBp96")
         project = rf.workspace().project("license-plate-recognition-rxg4e")
         self.lp_detector = project.version(3).model
         self.lp_detector.confidence = 0.6
+
+        self.min_ar = min_ar
+        self.max_ar = max_ar
+        self.debug = debug
+        # height of the licence plate characters in mm
+        self.known_height = 79
+        # focal length of the camera using image and known distance
+        lp = self.find_licence_plate(img)
+        self.focal_length = self.calculate_focal_length(lp, distance)
+
+
+
 
     def debug_imshow(self, title, img):
         """Function used to show processed images when in debug mode
@@ -55,7 +64,7 @@ class VehicleDistanceCalculator:
         designed for single vehicle use so only returns one licence plate
 
         :param img: the image of the vehicle
-        :return: the section of img that contains the licence plate
+        :return: the section of img that contains the licence plate, or None if no licence plate is found
         """
 
         # detect the licence plate, should only be one
@@ -68,11 +77,14 @@ class VehicleDistanceCalculator:
             y1 = int(result['y'] - result['height'] / 2)
             y2 = int(result['y'] + result['height'] / 2)
             ar = round(result['width'] / result['height'], 2)
-            if 3 <= ar <= 6:
-                self.debug_imshow('found licence plate', img[y1:y2, x1:x2])
+            #self.debug_imshow('found licence plate', img[y1:y2, x1:x2])
+            #print(ar)
+
+            if 2 <= ar <= 6:
+                self.debug_imshow('selected licence plate', img[y1:y2, x1:x2])
                 # return the crop of the licence plate
                 return img[y1:y2, x1:x2]
-
+        return None
     def get_average_character_height(self, lp):
         """calculates the average height in pixels
 
@@ -105,8 +117,11 @@ class VehicleDistanceCalculator:
                 # save h in heights
                 heights.append(h)
         self.debug_imshow("found characters", img)
-        # return the average height of the characters
-        return sum(heights) / len(heights)
+        # if characters found, return the average height of the characters
+        if len(heights) > 0:
+            return sum(heights) / len(heights)
+        else:
+            return None
 
     def distance_to_licence_plate(self, lp):
         """calculates the distance to the licence plate
@@ -122,8 +137,12 @@ class VehicleDistanceCalculator:
         """
         # get the average lp character height
         per_height = self.get_average_character_height(lp)
-        # workout and return distance from object to camera (per_height = perceived height)
-        return (self.known_height * self.focal_length) / per_height
+        # if characters are detected
+        if per_height is not None:
+            # workout and return distance from object to camera (per_height = perceived height)
+            return (self.known_height * self.focal_length) / per_height
+        else:
+            return None
 
     def calculate_focal_length(self, lp, known_distance):
         """calculates the focal length of the camera
