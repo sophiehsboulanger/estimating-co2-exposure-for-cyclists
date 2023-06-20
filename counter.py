@@ -7,18 +7,6 @@ import vehicle_distance
 import Vehicle
 
 
-def get_bb_area(box):
-    x1 = box[0]
-    y1 = box[1]
-    x2 = box[2]
-    y2 = box[3]
-
-    width = x2 - x1
-    height = y2 - y1
-
-    return abs(width * height)
-
-
 # get the output from model and put it in the correct format for object detector. A list of detections, each in tuples
 # of ( [left,top,w,h], confidence, detection_class )
 def get_output_format(frame_detections):
@@ -97,9 +85,8 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
     FRAME_WIDTH = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
     FRAME_HEIGHT = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
     frame_number = 1
-    frames = []
-    tracks = []
     vehicles = {}  # track_ids, vehicle object
+    ids = []  # used to store ids currently in frame, using because track status doesn't delete properly
     # choose codec according to format needed
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     output_video = cv2.VideoWriter(output, fourcc, 25, (FRAME_WIDTH, FRAME_HEIGHT))
@@ -118,53 +105,69 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
             if len(detections) > 0:
                 # track
                 tracks = tracker.update_tracks(detections, frame=frame)
-        # iterate through all the tracks
-        for track in tracks:
-            # get track id
-            track_id = track.track_id
-            # get bounding box min x, min y, max x, max y
-            bb = track.to_ltrb(orig=True)
-            # if the track id is not already in the list, create a vehicle object and add it to the dictionary
-            if track_id not in vehicles.keys():
-                # create vehicle object
-                vehicle = Vehicle.Vehicle(track_id, track.get_det_class, bb)
-                # add it to the dictionary
-                vehicles[track_id] = vehicle
-            # if the track confirmed and above the minimum area then continue
-            if track.state == 2 and get_bb_area(bb) >= min_size:
-                # get the vehicle object associated to the track
-                vehicle = vehicles[track_id]
-                # confirm the count
-                vehicle.confirmed = True
-                # get the cropped vehicle image
-                vehicle_img = frame[int(bb[1]):int(bb[3]), int(bb[0]):int(bb[2])]
-                # placeholder text
-                distance_text = 'no distance'
-                # check there is an image
-                if len(vehicle_img) > 0:
-                    # try and find a licence plate
-                    vehicle_lp = vdc.find_licence_plate(vehicle_img)
-                    if vehicle_lp is not None:
-                        # if a lp is found try and calculate the distance
-                        distance = vdc.distance_to_licence_plate(vehicle_lp)
-                        if distance is not None:
-                            # if a distance is found, put it in meters (2dp)
-                            distance_text = round(distance / 1000, 2)
-                            # add the distance in mm to the vehicles distance list
-                            vehicle.distances.append(distance)
-                else:
-                    # if there is no image print the track id, used for debugging
-                    print(track_id)
-
+                # update vehicle list and vehicles in the list
+                ids = []
+                for track in tracks:
+                    # get track id
+                    track_id = track.track_id
+                    ids.append(track_id)
+                    # get bounding box min x, min y, max x, max y
+                    bb = track.to_ltrb(orig=True)
+                    # if the track id is not already in the list, create a vehicle object and add it to the dictionary
+                    if track_id not in vehicles.keys():
+                        # create vehicle object
+                        vehicle = Vehicle.Vehicle(track_id, track.get_det_class, bb, track.state)
+                        # add it to the dictionary
+                        vehicles[track_id] = vehicle
+                    else:
+                        # otherwise get the vehicle from the list
+                        vehicle = vehicles[track_id]
+                        # update the bounding box and area
+                        vehicle.set_bb(bb)
+                        # update the state
+                        vehicle.status = track.state
+                    # if the vehicle is confirmed and above the minimum area try and find the distance
+                    if vehicle.status == 2 and vehicle.bb_area >= min_size:
+                        # update the vehicle to be confirmed
+                        vehicle.confirmed = True
+                        # get the cropped vehicle image
+                        vehicle_img = frame[int(vehicle.bb[1]):int(vehicle.bb[3]),
+                                      int(vehicle.bb[0]):int(vehicle.bb[2])]
+                        # placeholder text
+                        distance_text = 'no distance'
+                        # check there is an image
+                        if len(vehicle_img) > 0:
+                            # try and find a licence plate
+                            vehicle_lp = vdc.find_licence_plate(vehicle_img)
+                            if vehicle_lp is not None:
+                                # if a lp is found try and calculate the distance
+                                distance = vdc.distance_to_licence_plate(vehicle_lp)
+                                if distance is not None:
+                                    # if a distance is found, put it in meters (2dp)
+                                    distance_text = round(distance / 1000, 2)
+                                    # add the distance in mm to the vehicles distance list
+                                    vehicle.distances.append(distance)
+                        else:
+                            # if there is no image print the track id, used for debugging
+                            #print(track_id)
+                            pass
+        # draw bbs
+        for track_id in vehicles:
+            vehicle = vehicles[track_id]
+            if track_id in ids and vehicle.confirmed:
                 # set the colour of the bounding box to green
                 color = (0, 255, 0)
                 # draw bounding box
-                cv2.rectangle(frame, (int(bb[0]), int(bb[1])), (int(bb[2]), int(bb[3])),
+                cv2.rectangle(frame, (int(vehicle.bb[0]), int(vehicle.bb[1])), (int(vehicle.bb[2]), int(vehicle.bb[3])),
                               color=color, thickness=3)
+                if len(vehicle.distances) > 0:
+                    distance = round(vehicle.distances[-1] / 1000, 2)
+                else:
+                    distance = 'no distance'
                 # format the text
-                text = 'id: {}, distance: {}'.format(track_id, distance_text)
+                text = 'id: {}, distance: {}'.format(vehicle.track_id, distance )
                 # put the text onto the image
-                cv2.putText(frame, text, (int(bb[0]) - 20, int(bb[3])), cv2.FONT_HERSHEY_SIMPLEX, 1, color=color,
+                cv2.putText(frame, text, (int(vehicle.bb[0]) - 20, int(vehicle.bb[3])), cv2.FONT_HERSHEY_SIMPLEX, 1, color=color,
                             thickness=3)
 
         # add the frame with the drawn on bounding boxes to the frame list
@@ -179,7 +182,9 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
     video.release()
     print('Finished processing video')
     print('Counted vehicles: %d' % len(vehicles))
-    print(vehicles)
+    #print(vehicles)
+    for vehicle in vehicles:
+        print(vehicles[vehicle])
     # unique = set(counted_classes)
     # for counted_class in unique:
     #     class_count = counted_classes.count(counted_class)
@@ -190,5 +195,5 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
 
 if __name__ == "__main__":
     input_file = 'inputs/test_video_bike_stab.mp4'
-    output_file = 'outputs/code_update.mp4'
+    output_file = 'outputs/code_update3.mp4'
     main(input_file, output_file)
