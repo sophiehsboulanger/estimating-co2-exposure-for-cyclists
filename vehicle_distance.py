@@ -1,6 +1,7 @@
 # adapted from https://www.section.io/engineering-education/license-plate-detection-and-recognition-using-opencv-and-pytesseract/
 # https://pyimagesearch.com/2015/01/19/find-distance-camera-objectmarker-using-python-opencv/
 import cv2
+import numpy as np
 from roboflow import Roboflow
 
 
@@ -43,18 +44,21 @@ class VehicleDistanceCalculator:
         lp = self.find_licence_plate(img)
         self.focal_length = self.calculate_focal_length(lp, distance)
 
-
-
-
-    def debug_imshow(self, title, img):
+    def debug_imshow(self, title, img, scale=1):
         """Function used to show processed images when in debug mode
 
+        :param scale: the scale by which the image is to be displayed, default 1
         :param img: the image to show
         :type img: image
         :param title: the title to display in the output frame
         :type title: string
         """
         if self.debug:
+            new_size = tuple(i * scale for i in img.shape[0:2])
+            new_size = new_size[::-1]
+            #img = cv2.resize(img, new_size)
+            cv2.namedWindow(title)  # Create a named window
+            cv2.moveWindow(title, 40, 30)
             cv2.imshow(title, img)
             cv2.waitKey(0)
 
@@ -77,14 +81,16 @@ class VehicleDistanceCalculator:
             y1 = int(result['y'] - result['height'] / 2)
             y2 = int(result['y'] + result['height'] / 2)
             ar = round(result['width'] / result['height'], 2)
-            #self.debug_imshow('found licence plate', img[y1:y2, x1:x2])
-            #print(ar)
+            # self.debug_imshow('found licence plate', img[y1:y2, x1:x2])
+            # print(ar)
 
             if 2 <= ar <= 6:
-                self.debug_imshow('selected licence plate', img[y1:y2, x1:x2])
+                self.debug_imshow('selected licence plate', img[y1:y2, x1:x2], 10)
                 # return the crop of the licence plate
+                cv2.imwrite('inputs/distance_test_imgs/lp_og.png', img[y1:y2, x1:x2])
                 return img[y1:y2, x1:x2]
         return None
+
     def get_average_character_height(self, lp):
         """calculates the average height in pixels
 
@@ -101,22 +107,33 @@ class VehicleDistanceCalculator:
         img = cv2.cvtColor(lp, cv2.COLOR_BGR2GRAY)
         # denoise
         img = cv2.fastNlMeansDenoising(img, h=10)
-        # detect edges
-        edged = cv2.Canny(img, 20, 200)
+        # threshold
+        ret, img = cv2.threshold(img, 70, 255, cv2.THRESH_BINARY)
+        # erode
+        kernel = np.ones((2, 1), np.uint8)
+        img = cv2.erode(img, kernel, iterations=1)
         # find contours
-        contours, new = cv2.findContours(edged.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        self.debug_imshow('enhanced licence plate', img, 10)
+        contours, new = cv2.findContours(img.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         contours = sorted(contours, key=cv2.contourArea, reverse=True)[:20]
+        # get the area of the image of the lp
+        lp_a = img.shape[0] * img.shape[1]
+        # calculate the area threshold of the characters based on the lp area
+        a_thresh = int(lp_a / 25)
         for contour in contours:
             # get the bounding box
             x, y, w, h = cv2.boundingRect(contour)
             # calculate the aspect ratio
             ar = round(w / float(h), 2)
+            # calculate the area
+            a = w * h
             # if it's between the accepted aspect ratios
             if self.max_ar >= ar >= self.min_ar:
-                cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 1)
-                # save h in heights
-                heights.append(h)
-        self.debug_imshow("found characters", img)
+                if a >= a_thresh:
+                    cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 1)
+                    # save h in heights
+                    heights.append(h)
+        self.debug_imshow("found characters", img, 10)
         # if characters found, return the average height of the characters
         if len(heights) > 0:
             return sum(heights) / len(heights)
@@ -164,21 +181,20 @@ class VehicleDistanceCalculator:
 
 
 if __name__ == "__main__":
-    vdc = VehicleDistanceCalculator()
-    # ----------- set the focal length -----------
-    # read in the image
-    img = cv2.imread("inputs/straight_2m.png")
-    # find the licence plate
-    lp = vdc.find_licence_plate(img)
-    # calculate and set the focal length
-    vdc.calculate_focal_length(lp, 2000)
+    vdc_setup_img = cv2.imread('inputs/straight_2m.png')
+    vdc = VehicleDistanceCalculator(vdc_setup_img, 2000, debug=True)
 
     # -------- now test it works on another image ----------
     img = cv2.imread("inputs/straight_3m.png")
-    lp = vdc.find_licence_plate(img)
-    if lp is not None:
-        # calculate the distance
-        distance = vdc.distance_to_licence_plate(lp)
-        print(round(distance / 1000, 2), 'm')
+    vehicle_lp = vdc.find_licence_plate(img)
+    if vehicle_lp is not None:
+        # if a lp is found try and calculate the distance
+        distance = vdc.distance_to_licence_plate(vehicle_lp)
+        if distance is not None:
+            # if a distance is found, put it in meters (2dp)
+            distance = round(distance / 1000, 2)
+            print(distance)
+        else:
+            print('no distance found')
     else:
-        print('no licence plate detected')
+        print('no licence plate found')
