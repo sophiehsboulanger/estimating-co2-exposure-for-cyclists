@@ -130,13 +130,20 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
                     if vehicle.status == 2 and vehicle.bb_area >= min_size:
                         # update the vehicle to be confirmed
                         vehicle.confirmed = True
-                        # get the cropped vehicle image
-                        vehicle_img = frame[int(vehicle.bb[1]):int(vehicle.bb[3]),
-                                      int(vehicle.bb[0]):int(vehicle.bb[2])]
+                        # check there's a valid bb
+                        valid = all(i >= 0 for i in vehicle.bb)
+                        if valid:
+                            # get the cropped vehicle image
+                            vehicle_img = frame[int(vehicle.bb[1]):int(vehicle.bb[3]),
+                                          int(vehicle.bb[0]):int(vehicle.bb[2])]
+                        else:
+                            vehicle_img = []
                         # placeholder text
                         distance_text = 'no distance'
                         # check there is an image
                         if len(vehicle_img) > 0:
+                            # cv2.imshow('img', vehicle_img)
+                            # cv2.waitKey(0)
                             # try and find a licence plate
                             vehicle_lp = vdc.find_licence_plate(vehicle_img)
                             if vehicle_lp is not None:
@@ -194,6 +201,6 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
 
 
 if __name__ == "__main__":
-    input_file = 'inputs/test_video_bike_stab.mp4'
-    output_file = 'outputs/code_update3.mp4'
-    main(input_file, output_file)
+    input_file = 'ground_truth/gt_in/gt_1.mp4'
+    output_file = 'outputs/distance_gt1_all_frames.mp4'
+    main(input_file, output_file, frame_skip=1)
