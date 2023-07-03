@@ -85,9 +85,8 @@ class VehicleDistanceCalculator:
             # print(ar)
 
             if 2 <= ar <= 6:
-                self.debug_imshow('selected licence plate', img[y1:y2, x1:x2], 10)
+                #self.debug_imshow('selected licence plate', img[y1:y2, x1:x2], 10)
                 # return the crop of the licence plate
-                cv2.imwrite('inputs/distance_test_imgs/lp_og.png', img[y1:y2, x1:x2])
                 return img[y1:y2, x1:x2]
         return None
 
@@ -108,13 +107,13 @@ class VehicleDistanceCalculator:
         # denoise
         img = cv2.fastNlMeansDenoising(img, h=10)
         # threshold
-        ret, img = cv2.threshold(img, 70, 255, cv2.THRESH_BINARY)
+        ret, img = cv2.threshold(img, 80, 255, cv2.THRESH_BINARY)
         # erode
         kernel = np.ones((2, 1), np.uint8)
         img = cv2.erode(img, kernel, iterations=1)
         # find contours
         self.debug_imshow('enhanced licence plate', img, 10)
-        contours, new = cv2.findContours(img.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        contours, new = cv2.findContours(img, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         contours = sorted(contours, key=cv2.contourArea, reverse=True)[:20]
         # get the area of the image of the lp
         lp_a = img.shape[0] * img.shape[1]
@@ -133,7 +132,7 @@ class VehicleDistanceCalculator:
                     cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 1)
                     # save h in heights
                     heights.append(h)
-        self.debug_imshow("found characters", img, 10)
+        #self.debug_imshow("found characters", img, 10)
         # if characters found, return the average height of the characters
         if len(heights) > 0:
             return sum(heights) / len(heights)
