@@ -56,7 +56,7 @@ class VehicleDistanceCalculator:
         if self.debug:
             new_size = tuple(i * scale for i in img.shape[0:2])
             new_size = new_size[::-1]
-            #img = cv2.resize(img, new_size)
+            # img = cv2.resize(img, new_size)
             cv2.namedWindow(title)  # Create a named window
             cv2.moveWindow(title, 40, 30)
             cv2.imshow(title, img)
@@ -85,7 +85,7 @@ class VehicleDistanceCalculator:
             # print(ar)
 
             if 2 <= ar <= 6:
-                #self.debug_imshow('selected licence plate', img[y1:y2, x1:x2], 10)
+                # self.debug_imshow('selected licence plate', img[y1:y2, x1:x2], 10)
                 # return the crop of the licence plate
                 return img[y1:y2, x1:x2]
         return None
@@ -132,7 +132,7 @@ class VehicleDistanceCalculator:
                     cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 1)
                     # save h in heights
                     heights.append(h)
-        #self.debug_imshow("found characters", img, 10)
+        # self.debug_imshow("found characters", img, 10)
         # if characters found, return the average height of the characters
         if len(heights) > 0:
             return sum(heights) / len(heights)
@@ -156,7 +156,7 @@ class VehicleDistanceCalculator:
         # if characters are detected
         if per_height is not None:
             # workout and return distance from object to camera (per_height = perceived height)
-            return (self.known_height * self.focal_length) / per_height
+            return round(((self.known_height * self.focal_length) / per_height))
         else:
             return None
 

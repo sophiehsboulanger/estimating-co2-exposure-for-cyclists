@@ -47,6 +47,25 @@ def print_progress_bar(iteration, total, prefix='', suffix='', decimals=1, lengt
         print()
 
 
+def no_distance_handler(distances):
+    """ Handles missing distances.
+
+    If for whatever reason a distance cannot be found for a vehicle at a given point this function handles this.
+    If this list of distances is populated then it returns the last known distance
+    If there are no distances then it returns 0
+
+    Both values might need to be looked at, I might try a different imputation method to get the unknown distance
+    The zero value might also need changing depending on future handling of distances
+
+    :param distances: the list of distances associated to a vehicle
+    :return: int, either the last value in distances or 0
+    """
+    if len(distances) > 0:
+        return distances[-1]
+    else:
+        return 0
+
+
 def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_skip=5, conf_threshold=0.75,
          nms_threshold=0.4, min_size=12800):
     # check for gpu
@@ -84,6 +103,9 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
     TOTAL_FRAMES = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
     FRAME_WIDTH = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
     FRAME_HEIGHT = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    FPS = int(video.get(cv2.CAP_PROP_FPS))
+    divisor = int(FPS/frame_skip)
+    # print(FPS)
     frame_number = 1
     vehicles = {}  # track_ids, vehicle object
     ids = []  # used to store ids currently in frame, using because track status doesn't delete properly
@@ -91,12 +113,13 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     output_video = cv2.VideoWriter(output, fourcc, 25, (FRAME_WIDTH, FRAME_HEIGHT))
 
+    # set up the progress bar
     print_progress_bar(0, TOTAL_FRAMES, prefix='Progress:', suffix='Complete')
     while video.isOpened():
         ret, frame = video.read()
         # if frame is read correctly ret is True
         if not ret:
-            print('Cant receive frame, stream end. Exiting...')
+            print('End of video. Exiting...')
             break
         if frame_number % frame_skip == 0:  # only do tracking and detection every FRAME_SKIP frames
             # do the detection on the frame and get in format needed for tracker
@@ -116,91 +139,94 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
                     # if the track id is not already in the list, create a vehicle object and add it to the dictionary
                     if track_id not in vehicles.keys():
                         # create vehicle object
-                        vehicle = Vehicle.Vehicle(track_id, track.get_det_class, bb, track.state)
+                        vehicle_id = Vehicle.Vehicle(track_id, track.get_det_class(), bb, track.state)
                         # add it to the dictionary
-                        vehicles[track_id] = vehicle
+                        vehicles[track_id] = vehicle_id
                     else:
                         # otherwise get the vehicle from the list
-                        vehicle = vehicles[track_id]
+                        vehicle_id = vehicles[track_id]
                         # update the bounding box and area
-                        vehicle.set_bb(bb)
+                        vehicle_id.set_bb(bb)
                         # update the state
-                        vehicle.status = track.state
+                        vehicle_id.status = track.state
                     # if the vehicle is confirmed and above the minimum area try and find the distance
-                    if vehicle.status == 2 and vehicle.bb_area >= min_size:
+                    if vehicle_id.status == 2 and vehicle_id.bb_area >= min_size:
                         # update the vehicle to be confirmed
-                        vehicle.confirmed = True
+                        vehicle_id.confirmed = True
                         # check there's a valid bb
-                        valid = all(i >= 0 for i in vehicle.bb)
+                        valid = all(i >= 0 for i in vehicle_id.bb)
                         if valid:
                             # get the cropped vehicle image
-                            vehicle_img = frame[int(vehicle.bb[1]):int(vehicle.bb[3]),
-                                          int(vehicle.bb[0]):int(vehicle.bb[2])]
+                            vehicle_img = frame[int(vehicle_id.bb[1]):int(vehicle_id.bb[3]),
+                                          int(vehicle_id.bb[0]):int(vehicle_id.bb[2])]
                         else:
                             vehicle_img = []
-                        # placeholder text
-                        distance_text = 'no distance'
                         # check there is an image
                         if len(vehicle_img) > 0:
-                            # cv2.imshow('img', vehicle_img)
-                            # cv2.waitKey(0)
                             # try and find a licence plate
                             vehicle_lp = vdc.find_licence_plate(vehicle_img)
                             if vehicle_lp is not None:
                                 # if a lp is found try and calculate the distance
                                 distance = vdc.distance_to_licence_plate(vehicle_lp)
                                 if distance is not None:
-                                    # if a distance is found, put it in meters (2dp)
-                                    distance_text = round(distance / 1000, 2)
+                                    # print(distance)
                                     # add the distance in mm to the vehicles distance list
-                                    vehicle.distances.append(distance)
+                                    vehicle_id.add_distance(distance)
+                                else:
+                                    # if no distance is found, use the previous distance
+                                    vehicle_id.add_distance(no_distance_handler(vehicle_id.distances))
+                            else:
+                                # if there is no lp, use the previous distance
+                                vehicle_id.add_distance(no_distance_handler(vehicle_id.distances))
                         else:
-                            # if there is no image print the track id, used for debugging
-                            #print(track_id)
-                            pass
+                            # if there is no image, use the previous distance
+                            vehicle_id.add_distance(no_distance_handler(vehicle_id.distances))
         # draw bbs
         for track_id in vehicles:
-            vehicle = vehicles[track_id]
-            if track_id in ids and vehicle.confirmed:
+            vehicle_id = vehicles[track_id]
+            if track_id in ids and vehicle_id.confirmed:
                 # set the colour of the bounding box to green
                 color = (0, 255, 0)
                 # draw bounding box
-                cv2.rectangle(frame, (int(vehicle.bb[0]), int(vehicle.bb[1])), (int(vehicle.bb[2]), int(vehicle.bb[3])),
+                cv2.rectangle(frame, (int(vehicle_id.bb[0]), int(vehicle_id.bb[1])), (int(vehicle_id.bb[2]), int(vehicle_id.bb[3])),
                               color=color, thickness=3)
-                if len(vehicle.distances) > 0:
-                    distance = round(vehicle.distances[-1] / 1000, 2)
+                if len(vehicle_id.distances) > 0:
+                    distance = round(vehicle_id.distances[-1] / 1000, 2)
                 else:
                     distance = 'no distance'
                 # format the text
-                text = 'id: {}, distance: {}'.format(vehicle.track_id, distance )
+                text = 'id: {}, distance: {}'.format(vehicle_id.track_id, distance)
                 # put the text onto the image
-                cv2.putText(frame, text, (int(vehicle.bb[0]) - 20, int(vehicle.bb[3])), cv2.FONT_HERSHEY_SIMPLEX, 1, color=color,
+                cv2.putText(frame, text, (int(vehicle_id.bb[0]) - 20, int(vehicle_id.bb[3])), cv2.FONT_HERSHEY_SIMPLEX, 1,
+                            color=color,
                             thickness=3)
 
-        # add the frame with the drawn on bounding boxes to the frame list
-        # frames.append(frame)
         # save the frame to the output video
         output_video.write(frame)
-        # print(frame_number)  # this is for debugging
+        # update progress bar
         print_progress_bar(frame_number, TOTAL_FRAMES, prefix='Progress:', suffix='Complete')
         # increment the frame number
         frame_number = frame_number + 1
 
     video.release()
     print('Finished processing video')
-    print('Counted vehicles: %d' % len(vehicles))
-    #print(vehicles)
-    for vehicle in vehicles:
-        print(vehicles[vehicle])
-    # unique = set(counted_classes)
-    # for counted_class in unique:
-    #     class_count = counted_classes.count(counted_class)
-    #     print("%s: %d" % (counted_class, class_count))
-
-    return len(vehicles)
+    # print('Counted vehicles: %d' % len(vehicles))
+    total_score = 0
+    counted = 0
+    for vehicle_id in vehicles:
+        # only print and analyse confirmed vehicles
+        if vehicles[vehicle_id].confirmed:
+            score = vehicles[vehicle_id].get_score(divisor)
+            #print(score)
+            total_score = total_score + score
+            counted = counted + 1
+            print(vehicles[vehicle_id])
+    print('total score:', total_score)
+    print('counted vehicles:', counted)
+    # return len(vehicles)
 
 
 if __name__ == "__main__":
-    input_file = 'ground_truth/gt_in/gt_1.mp4'
-    output_file = 'outputs/distance_gt1_all_frames.mp4'
-    main(input_file, output_file, frame_skip=1)
+    input_file = 'inputs/test_video_bike_stab.mp4'
+    output_file = 'outputs/output_test.mp4'
+    main(input_file, output_file)
