@@ -101,7 +101,6 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
     FRAME_HEIGHT = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
     FPS = int(video.get(cv2.CAP_PROP_FPS))
     divisor = int(FPS / frame_skip)
-    # print(FPS)
     frame_number = 1
     vehicles = {}  # track_ids, vehicle object
     ids = []  # used to store ids currently in frame, using because track status doesn't delete properly
