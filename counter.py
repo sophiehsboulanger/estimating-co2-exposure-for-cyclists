@@ -75,10 +75,6 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
     # tracker.tracker.n_init should be the minimum age before a track is confirmed
     tracker.tracker.n_init = min_age
 
-    # open the class names files and then read them into a list
-    with open('yolo_config_files/coco.names', 'r') as f:
-        classes = f.read().splitlines()
-
     # read in the network from the saved config and weight files
     net = cv2.dnn.readNetFromDarknet('yolo_config_files/yolov4.cfg', 'yolo_config_files/yolov4.weights')
 
@@ -104,7 +100,7 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
     FRAME_WIDTH = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
     FRAME_HEIGHT = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
     FPS = int(video.get(cv2.CAP_PROP_FPS))
-    divisor = int(FPS/frame_skip)
+    divisor = int(FPS / frame_skip)
     # print(FPS)
     frame_number = 1
     vehicles = {}  # track_ids, vehicle object
@@ -188,7 +184,8 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
                 # set the colour of the bounding box to green
                 color = (0, 255, 0)
                 # draw bounding box
-                cv2.rectangle(frame, (int(vehicle_id.bb[0]), int(vehicle_id.bb[1])), (int(vehicle_id.bb[2]), int(vehicle_id.bb[3])),
+                cv2.rectangle(frame, (int(vehicle_id.bb[0]), int(vehicle_id.bb[1])),
+                              (int(vehicle_id.bb[2]), int(vehicle_id.bb[3])),
                               color=color, thickness=3)
                 if len(vehicle_id.distances) > 0:
                     distance = round(vehicle_id.distances[-1] / 1000, 2)
@@ -197,7 +194,8 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
                 # format the text
                 text = 'id: {}, distance: {}'.format(vehicle_id.track_id, distance)
                 # put the text onto the image
-                cv2.putText(frame, text, (int(vehicle_id.bb[0]) - 20, int(vehicle_id.bb[3])), cv2.FONT_HERSHEY_SIMPLEX, 1,
+                cv2.putText(frame, text, (int(vehicle_id.bb[0]) - 20, int(vehicle_id.bb[3])), cv2.FONT_HERSHEY_SIMPLEX,
+                            1,
                             color=color,
                             thickness=3)
 
@@ -217,7 +215,7 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
         # only print and analyse confirmed vehicles
         if vehicles[vehicle_id].confirmed:
             score = vehicles[vehicle_id].get_score(divisor)
-            #print(score)
+            # print(score)
             total_score = total_score + score
             counted = counted + 1
             print(vehicles[vehicle_id])
