@@ -1,0 +1,5 @@
+file,true count,counted,accuracy
+gt_10.mp4,7,34.0,-285.71
+gt_6.mp4,21,60.0,-85.71
+gt_13.mp4,31,159.0,-312.9
+gt_7.mp4,32,71.0,-21.88

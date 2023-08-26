@@ -1,5 +1,5 @@
-def get_bb_area(bb):
-    """Calculates the area of the bounding box
+def get_bb_area(bb, FRAME_WIDTH, FRAME_HEIGHT):
+    """Calculates the area of the bounding box as a percentage of the videos resolution
 
     :param bb: list of length 4 in the format: [min x, min y, max x, max y]
     :return: int, the area of the bounding box
@@ -12,7 +12,9 @@ def get_bb_area(bb):
     width = x2 - x1
     height = y2 - y1
 
-    return width * height
+    bbx_area = width * height
+    frame_area = FRAME_HEIGHT * FRAME_WIDTH
+    return (bbx_area/frame_area)*100
 
 
 def get_co2(vehicle_class):
@@ -39,24 +41,26 @@ def divide_chunks(distances, divisor):
 
 
 class Vehicle:
-    def __init__(self, track_id, vehicle_class, bb, status):
+    def __init__(self, track_id, vehicle_class, bb, status, conf, FRAME_WIDTH, FRAME_HEIGHT):
         self.track_id = track_id
         self.vehicle_class = vehicle_class
         self.co2 = get_co2(self.vehicle_class)
         self.bb = bb
-        self.bb_area = get_bb_area(bb)
+        self.bb_area = get_bb_area(bb, FRAME_WIDTH, FRAME_HEIGHT)
         self.status = status
         self.confirmed = False
         self.distances = []
         self.score = None
+        self.result = None
+        self.conf =  conf
 
-    def set_bb(self, bb):
+    def set_bb(self, bb, FRAME_WIDTH, FRAME_HEIGHT):
         """Updates the bb and area of the vehicle
 
         :param bb: list of length 4 in the format: [min x, min y, max x, max y]
         """
         self.bb = bb
-        self.bb_area = get_bb_area(bb)
+        self.bb_area = get_bb_area(bb, FRAME_WIDTH, FRAME_HEIGHT)
 
     def add_distance(self, distance):
         self.distances.append(distance)

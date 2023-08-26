@@ -11,32 +11,18 @@ import Vehicle
 
 # get the output from model and put it in the correct format for object detector. A list of detections, each in tuples
 # of ( [left,top,w,h], confidence, detection_class )
-#https://stackoverflow.com/questions/60674501/how-to-make-black-background-in-cv2-puttext-with-python-opencv
-def draw_text(img, text,
-          font=cv2.FONT_HERSHEY_PLAIN,
-          pos=(0, 0),
-          font_scale=3,
-          font_thickness=2,
-          text_color=(0, 255, 0),
-          text_color_bg=(0, 0, 0)
-          ):
-
-    x, y = pos
-    text_size, _ = cv2.getTextSize(text, font, font_scale, font_thickness)
-    text_w, text_h = text_size
-    cv2.rectangle(img, pos, (x + text_w, y + text_h), text_color_bg, -1)
-    cv2.putText(img, text, (x, y + text_h + font_scale - 1), font, font_scale, text_color, font_thickness)
 def get_output_format(frame_detections):
     # define output list
     output = []
-    # define desired classes
-    target_classes = [2, 3, 5, 7]  # is currently set to car, motorbike, bus and truck
-    # unpack the tuple to get individual arrays
-    class_ids, scores, boxes = frame_detections
-    for (classId, score, box) in zip(class_ids, scores, boxes):
-        # only pass bounding boxes if they are a target class
-        if classId in target_classes:
-            output.append((box, score, classId))
+    for idx, detection in frame_detections.iterrows():
+        x = detection['xmin']
+        y = detection['ymin']
+        w = detection['xmax'] - x
+        h = detection['ymax'] - y
+        box = [x, y, w, h]
+        score = detection['confidence']
+        class_id = detection['class']
+        output.append((box, score, class_id))
     return output
 
 
@@ -83,8 +69,8 @@ def no_distance_handler(distances):
         return 0
 
 
-def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_skip=5, conf_threshold=0.5,
-         nms_threshold=0.5, min_size=0):
+def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_skip=5, conf_threshold=0.75,
+         nms_threshold=0.4, min_size=12800):
     # check for gpu
     gpu = torch.cuda.is_available()
     print(gpu)
@@ -93,14 +79,8 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
     # tracker.tracker.n_init should be the minimum age before a track is confirmed
     tracker.tracker.n_init = min_age
 
-    # read in the network from the saved config and weight files
-    net = cv2.dnn.readNetFromDarknet('yolo_config_files/yolov4.cfg', 'yolo_config_files/yolov4.weights')
-
-    # set the network to be a detection model
-    object_detector = cv2.dnn_DetectionModel(net)
-
-    # set the image size and input params
-    object_detector.setInputParams(scale=1 / 255, size=(416, 416), swapRB=True)
+    yolov5 = torch.hub.load('ultralytics/yolov5', 'yolov5x', pretrained=True)
+    yolov5.classes = [2, 3, 5, 7]
 
     # set up the vehicle distance calculator
     vdc_setup_img = cv2.imread('inputs/straight_2m.png')
@@ -136,8 +116,8 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
             break
         if frame_number % frame_skip == 0:  # only do tracking and detection every FRAME_SKIP frames
             # do the detection on the frame and get in format needed for tracker
-            detections = get_output_format(
-                object_detector.detect(frame=frame, confThreshold=conf_threshold, nmsThreshold=nms_threshold))
+            detections_og = yolov5(frame).pandas().xyxy[0]
+            detections = get_output_format(detections_og)
             if len(detections) > 0:
                 # track
                 tracks = tracker.update_tracks(detections, frame=frame)
@@ -152,20 +132,16 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
                     # if the track id is not already in the list, create a vehicle object and add it to the dictionary
                     if track_id not in vehicles.keys():
                         # create vehicle object
-                        vehicle_id = Vehicle.Vehicle(track_id, track.get_det_class(), bb, track.state, track.get_det_conf(), FRAME_WIDTH, FRAME_HEIGHT)
+                        vehicle_id = Vehicle.Vehicle(track_id, track.get_det_class(), bb, track.state)
                         # add it to the dictionary
                         vehicles[track_id] = vehicle_id
                     else:
                         # otherwise get the vehicle from the list
                         vehicle_id = vehicles[track_id]
                         # update the bounding box and area
-                        vehicle_id.set_bb(bb, FRAME_WIDTH, FRAME_HEIGHT)
+                        vehicle_id.set_bb(bb)
                         # update the state
                         vehicle_id.status = track.state
-                        # update class
-                        vehicle_id.vehicle_class = track.get_det_class()
-                        # update confidence
-                        vehicle_id.conf = track.get_det_conf()
                     # if the vehicle is confirmed and above the minimum area try and find the distance
                     if vehicle_id.status == 2 and vehicle_id.bb_area >= min_size:
                         # update the vehicle to be confirmed
@@ -203,31 +179,24 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
         for track_id in vehicles:
             vehicle_id = vehicles[track_id]
             if track_id in ids and vehicle_id.confirmed:
-            #if track_id in ids:
-                vehicle_class = vehicle_id.vehicle_class
-                if vehicle_class == 2:
-                    color = (9, 127, 240)
-                if vehicle_class == 5:
-                    color = (54, 41, 159)
-                if vehicle_class == 7:
-                    color = (124, 88, 27)
-                if vehicle_class == 3:
-                    color = (66, 133, 78)
+                # set the colour of the bounding box to green
+                color = (0, 255, 0)
                 # draw bounding box
                 cv2.rectangle(frame, (int(vehicle_id.bb[0]), int(vehicle_id.bb[1])),
                               (int(vehicle_id.bb[2]), int(vehicle_id.bb[3])),
                               color=color, thickness=3)
-                text = 'ID:{}, conf:{}'.format(vehicle_id.track_id, vehicle_id.conf)
-                draw_text(frame, text, text_color=(255, 255, 255), text_color_bg=color,
-                          pos=(int(vehicle_id.bb[0]), int(vehicle_id.bb[1] - 25)))
                 if len(vehicle_id.distances) > 0:
                     distance = round(vehicle_id.distances[-1] / 1000, 2)
                 else:
                     distance = 'no distance'
                 # format the text
                 #text = 'id: {}, distance: {}'.format(vehicle_id.track_id, distance)
+                text = str(vehicle_id.bb)
                 # put the text onto the image
-                #cv2.putText(frame, text, (int(vehicle_id.bb[0]) - 20, int(vehicle_id.bb[3])), cv2.FONT_HERSHEY_SIMPLEX,1, color=color, thickness=3)
+                cv2.putText(frame, text, (int(vehicle_id.bb[0]) - 20, int(vehicle_id.bb[3])), cv2.FONT_HERSHEY_SIMPLEX,
+                            1,
+                            color=color,
+                            thickness=3)
 
         # save the frame to the output video
         output_video.write(frame)
@@ -278,10 +247,10 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
 
 
 if __name__ == "__main__":
-    input_file = 'ground_truth/gt_in/gt_6.mp4'
-    output_file = 'outputs/new_area.mp4'
+    input_file = 'inputs/test_video_bike_stab.mp4'
+    output_file = 'outputs/sdfsduyi.mp4'
     start_time = time.time()
-    main(input_file, output_file, frame_skip=6, max_age=30,nms_max_overlap=1, min_age=3, min_size=0.2)
+    main(input_file, output_file, frame_skip=1)
     end_time = time.time()
     elapsed_time = round(end_time - start_time, 2)
     print(elapsed_time)
