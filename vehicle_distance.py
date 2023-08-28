@@ -61,6 +61,8 @@ class VehicleDistanceCalculator:
             cv2.moveWindow(title, 40, 30)
             cv2.imshow(title, img)
             cv2.waitKey(0)
+            file_name = 'outputs/{}.png'.format(title)
+            cv2.imwrite(file_name, img)
 
     def find_licence_plate(self, img):
         """finds the licence plate in the image
@@ -81,11 +83,11 @@ class VehicleDistanceCalculator:
             y1 = int(result['y'] - result['height'] / 2)
             y2 = int(result['y'] + result['height'] / 2)
             ar = round(result['width'] / result['height'], 2)
-            # self.debug_imshow('found licence plate', img[y1:y2, x1:x2])
+            self.debug_imshow('found licence plate', img[y1:y2, x1:x2])
             # print(ar)
 
             if 2 <= ar <= 6:
-                # self.debug_imshow('selected licence plate', img[y1:y2, x1:x2], 10)
+                self.debug_imshow('selected licence plate', img[y1:y2, x1:x2], 10)
                 # return the crop of the licence plate
                 return img[y1:y2, x1:x2]
         return None
@@ -102,15 +104,22 @@ class VehicleDistanceCalculator:
         :type: float
         """
         heights = []
+        # keep orginal image
+        og_img = lp
         # convert to grey
         img = cv2.cvtColor(lp, cv2.COLOR_BGR2GRAY)
+        self.debug_imshow('gray image', img)
         # denoise
         img = cv2.fastNlMeansDenoising(img, h=10)
+        self.debug_imshow('denoised', img)
         # threshold
-        ret, img = cv2.threshold(img, 80, 255, cv2.THRESH_BINARY)
+        #ret, img = cv2.threshold(img, 80, 255, cv2.THRESH_BINARY)
+        #self.debug_imshow('thresh', img)
         # erode
-        kernel = np.ones((2, 1), np.uint8)
-        img = cv2.erode(img, kernel, iterations=1)
+        #kernel = np.ones((2, 1), np.uint8)
+        #img = cv2.erode(img, kernel, iterations=1)
+        #self.debug_imshow('erode', img)
+        img = cv2.Canny(img, 20, 200)
         # find contours
         self.debug_imshow('enhanced licence plate', img, 10)
         contours, new = cv2.findContours(img, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
@@ -129,10 +138,10 @@ class VehicleDistanceCalculator:
             # if it's between the accepted aspect ratios
             if self.max_ar >= ar >= self.min_ar:
                 if a >= a_thresh:
-                    cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 1)
+                    cv2.rectangle(og_img, (x, y), (x + w, y + h), (0, 255, 0), 1)
                     # save h in heights
                     heights.append(h)
-        # self.debug_imshow("found characters", img, 10)
+        self.debug_imshow("found characters", og_img, 10)
         # if characters found, return the average height of the characters
         if len(heights) > 0:
             return sum(heights) / len(heights)
@@ -180,11 +189,11 @@ class VehicleDistanceCalculator:
 
 
 if __name__ == "__main__":
-    vdc_setup_img = cv2.imread('inputs/straight_2m.png')
+    vdc_setup_img = cv2.imread('inputs/lp2.jpg')
     vdc = VehicleDistanceCalculator(vdc_setup_img, 2000, debug=True)
 
     # -------- now test it works on another image ----------
-    img = cv2.imread("inputs/straight_3m.png")
+    img = cv2.imread("inputs/lp2.jpg")
     vehicle_lp = vdc.find_licence_plate(img)
     if vehicle_lp is not None:
         # if a lp is found try and calculate the distance
