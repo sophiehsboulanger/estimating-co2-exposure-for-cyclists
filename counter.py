@@ -11,21 +11,22 @@ import Vehicle
 
 # get the output from model and put it in the correct format for object detector. A list of detections, each in tuples
 # of ( [left,top,w,h], confidence, detection_class )
-#https://stackoverflow.com/questions/60674501/how-to-make-black-background-in-cv2-puttext-with-python-opencv
+# https://stackoverflow.com/questions/60674501/how-to-make-black-background-in-cv2-puttext-with-python-opencv
 def draw_text(img, text,
-          font=cv2.FONT_HERSHEY_PLAIN,
-          pos=(0, 0),
-          font_scale=3,
-          font_thickness=2,
-          text_color=(0, 255, 0),
-          text_color_bg=(0, 0, 0)
-          ):
-
+              font=cv2.FONT_HERSHEY_PLAIN,
+              pos=(0, 0),
+              font_scale=3,
+              font_thickness=2,
+              text_color=(0, 255, 0),
+              text_color_bg=(0, 0, 0)
+              ):
     x, y = pos
     text_size, _ = cv2.getTextSize(text, font, font_scale, font_thickness)
     text_w, text_h = text_size
     cv2.rectangle(img, pos, (x + text_w, y + text_h), text_color_bg, -1)
     cv2.putText(img, text, (x, y + text_h + font_scale - 1), font, font_scale, text_color, font_thickness)
+
+
 def get_output_format(frame_detections):
     # define output list
     output = []
@@ -83,11 +84,20 @@ def no_distance_handler(distances):
         return 0
 
 
-def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_skip=5, conf_threshold=0.5,
-         nms_threshold=0.5, min_size=0):
+def create_txt_file(file_name, length, fps, frame_skip, conf, max_age, min_age, area, results):
+    with open(file_name, 'w') as f:
+        f.write('{} | video length: {} | {} fps \n'.format(file_name, round(length,0), fps))
+        f.write('frame skip: {} | confidence: {} | max age: {} | min age: {} | area: {} \n'.format(frame_skip, conf,
+                                                                                                   max_age, min_age,
+                                                                                                   area))
+        for key, value in results.items():
+            f.write('{}: {} \n'.format(key, value))
+
+
+def main(input_file, output, max_age=10, min_age=4, nms_max_overlap=1, frame_skip=6, conf_threshold=0.5,
+         nms_threshold=0.5, min_size=0.2):
     # check for gpu
     gpu = torch.cuda.is_available()
-    print(gpu)
     # define the tracker
     tracker = DeepSort(max_age, nms_max_overlap, embedder_gpu=gpu)
     # tracker.tracker.n_init should be the minimum age before a track is confirmed
@@ -103,7 +113,7 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
     object_detector.setInputParams(scale=1 / 255, size=(416, 416), swapRB=True)
 
     # set up the vehicle distance calculator
-    vdc_setup_img = cv2.imread('inputs/straight_2m.png')
+    vdc_setup_img = cv2.imread('inputs/distance_test_imgs/straight_2m.png')
     vdc = vehicle_distance.VehicleDistanceCalculator(vdc_setup_img, 2000)
 
     # check if input video file exists
@@ -152,7 +162,8 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
                     # if the track id is not already in the list, create a vehicle object and add it to the dictionary
                     if track_id not in vehicles.keys():
                         # create vehicle object
-                        vehicle_id = Vehicle.Vehicle(track_id, track.get_det_class(), bb, track.state, track.get_det_conf(), FRAME_WIDTH, FRAME_HEIGHT)
+                        vehicle_id = Vehicle.Vehicle(track_id, track.get_det_class(), bb, track.state,
+                                                     track.get_det_conf(), FRAME_WIDTH, FRAME_HEIGHT)
                         # add it to the dictionary
                         vehicles[track_id] = vehicle_id
                     else:
@@ -181,8 +192,7 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
                         # check there is an image
                         if len(vehicle_img) > 0:
                             # try and find a licence plate
-                            #vehicle_lp = vdc.find_licence_plate(vehicle_img)
-                            vehicle_lp = None
+                            vehicle_lp = vdc.find_licence_plate(vehicle_img)
                             if vehicle_lp is not None:
                                 # if a lp is found try and calculate the distance
                                 distance = vdc.distance_to_licence_plate(vehicle_lp)
@@ -202,8 +212,8 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
         # draw bbs
         for track_id in vehicles:
             vehicle_id = vehicles[track_id]
-            if track_id in ids and vehicle_id.confirmed:
-            #if track_id in ids:
+            if track_id in ids and vehicle_id.confirmed and vehicle_id.conf is not None:
+                # if track_id in ids:
                 vehicle_class = vehicle_id.vehicle_class
                 if vehicle_class == 2:
                     color = (9, 127, 240)
@@ -217,17 +227,14 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
                 cv2.rectangle(frame, (int(vehicle_id.bb[0]), int(vehicle_id.bb[1])),
                               (int(vehicle_id.bb[2]), int(vehicle_id.bb[3])),
                               color=color, thickness=3)
-                text = 'ID:{}, conf:{}'.format(vehicle_id.track_id, vehicle_id.conf)
-                draw_text(frame, text, text_color=(255, 255, 255), text_color_bg=color,
-                          pos=(int(vehicle_id.bb[0]), int(vehicle_id.bb[1] - 25)))
+
                 if len(vehicle_id.distances) > 0:
                     distance = round(vehicle_id.distances[-1] / 1000, 2)
                 else:
                     distance = 'no distance'
-                # format the text
-                #text = 'id: {}, distance: {}'.format(vehicle_id.track_id, distance)
-                # put the text onto the image
-                #cv2.putText(frame, text, (int(vehicle_id.bb[0]) - 20, int(vehicle_id.bb[3])), cv2.FONT_HERSHEY_SIMPLEX,1, color=color, thickness=3)
+                text = 'ID:{}, distance:{}'.format(vehicle_id.track_id, distance)
+                draw_text(frame, text, text_color=(255, 255, 255), text_color_bg=color,
+                          pos=(int(vehicle_id.bb[0]), int(vehicle_id.bb[1] - 25)))
 
         # save the frame to the output video
         output_video.write(frame)
@@ -264,8 +271,6 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
             elif vehicles[vehicle_id].vehicle_class == 7:
                 # 'truck'
                 trucks = trucks + 1
-    print('total score:', total_score)
-    print('counted vehicles:', counted)
     results = {
         'score': total_score,
         'total count': counted,
@@ -274,14 +279,19 @@ def main(input_file, output, max_age=5, min_age=5, nms_max_overlap=0.5, frame_sk
         'trucks': trucks,
         'motorbikes': motorbikes
     }
+    print(results)
+    file_name = os.path.basename(input_file)
+    file_name = file_name[:-4]+'.txt'
+    file_path = 'demos/outputs/{}'.format(file_name)
+    create_txt_file(file_path, (TOTAL_FRAMES/FPS), FPS, frame_skip, conf_threshold, max_age, min_age, min_size, results)
     return results
 
 
 if __name__ == "__main__":
-    input_file = 'ground_truth/gt_in/gt_6.mp4'
-    output_file = 'outputs/new_area.mp4'
+    input_file = 'demos/inputs/demo1.mp4'
+    output_file = 'demos/outputs/demo1.mp4'
     start_time = time.time()
-    main(input_file, output_file, frame_skip=6, max_age=30,nms_max_overlap=1, min_age=3, min_size=0.2)
+    main(input_file, output_file)
     end_time = time.time()
     elapsed_time = round(end_time - start_time, 2)
-    print(elapsed_time)
+    print('elapsed time: ', elapsed_time)
